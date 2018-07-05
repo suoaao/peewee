@@ -1339,7 +1339,7 @@ class Function(ColumnBase):
         self._filter = where
 
     def over(self, partition_by=None, order_by=None, start=None, end=None,
-             window=None):
+             window=None, as_range=False):
         if isinstance(partition_by, Window) and window is None:
             window = partition_by
 
@@ -1347,7 +1347,7 @@ class Function(ColumnBase):
             node = WindowAlias(window)
         else:
             node = Window(partition_by=partition_by, order_by=order_by,
-                          start=start, end=end)
+                          start=start, end=end, as_range=as_range)
         return NodeList((self, SQL('OVER'), node))
 
     def __sql__(self, ctx):
@@ -1373,7 +1373,7 @@ class Window(Node):
     CURRENT_ROW = SQL('CURRENT ROW')
 
     def __init__(self, partition_by=None, order_by=None, start=None, end=None,
-                 alias=None):
+                 alias=None, as_range=False):
         super(Window, self).__init__()
         if start is not None and not isinstance(start, SQL):
             start = SQL(start)
@@ -1386,6 +1386,7 @@ class Window(Node):
         self.end = end
         if self.start is None and self.end is not None:
             raise ValueError('Cannot specify WINDOW end without start.')
+        self.as_range = as_range
         self._alias = alias or 'w'
 
     def alias(self, alias=None):
@@ -1419,14 +1420,19 @@ class Window(Node):
                 parts.extend((
                     SQL('ORDER BY'),
                     CommaNodeList(self.order_by)))
+            frame_type = 'RANGE' if self.as_range else 'ROWS'
             if self.start is not None and self.end is not None:
                 parts.extend((
-                    SQL('ROWS BETWEEN'),
+                    SQL('%s BETWEEN' % frame_type),
                     self.start,
                     SQL('AND'),
                     self.end))
             elif self.start is not None:
-                parts.extend((SQL('ROWS'), self.start))
+                parts.extend((SQL(frame_type), self.start))
+            elif self.order_by and not self.as_range:
+                # If this is an ordered window and we are not explicitly using
+                # a range, ensure that we indicate ROWS (for consistency).
+                parts.append(SQL('ROWS UNBOUNDED PRECEDING'))
             ctx.sql(NodeList(parts))
         return ctx
 

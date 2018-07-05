@@ -1607,6 +1607,48 @@ class TestWindowFunctionIntegration(ModelTestCase):
             (2, 3., 24.),
             (3, 100., 104.)])
 
+    def test_bounds_rows_range(self):
+        # Create some duplicate-ish rows.
+        Sample.create(counter=1, value=20)
+        Sample.create(counter=2, value=1)
+        Sample.create(counter=2, value=10)
+
+        # AS RANGE behavior:
+        query = Sample.select(
+            Sample.counter, Sample.value,
+            fn.SUM(Sample.value).over(
+                order_by=[Sample.counter, Sample.value],
+                as_range=True)
+        ).order_by(Sample.id)
+
+        # SUMs are based on logical groupings of unique counter/value combos.
+        self.assertEqual(list(query.tuples()), [
+            (1, 10., 10.),
+            (1, 20., 50.),
+            (2, 1., 52.),
+            (2, 3., 55.),
+            (3, 100., 165.),
+            (1, 20., 50.),
+            (2, 1., 52.),
+            (2, 10., 65.)])
+
+        # AS ROWS (default for peewee) behavior.
+        query = Sample.select(
+            Sample.counter, Sample.value,
+            fn.SUM(Sample.value).over(order_by=[Sample.counter, Sample.value])
+        ).order_by(Sample.id)
+
+        # SUMs are specific to the individual row.
+        self.assertEqual(list(query.tuples()), [
+            (1, 10., 10.),
+            (1, 20., 30.),
+            (2, 1., 51.),
+            (2, 3., 55.),
+            (3, 100., 165.),
+            (1, 20., 50.),
+            (2, 1., 52.),
+            (2, 10., 65.)])
+
     @skip_if(IS_MYSQL, 'requires OVER() with FILTER')
     def test_filter_clause(self):
         condsum = fn.SUM(Sample.value).filter(Sample.counter > 1).over(

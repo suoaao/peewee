@@ -700,7 +700,8 @@ class TestWindowFunctions(BaseTestCase):
                      Register.value,
                      fn.RANK().over(order_by=[Register.value])))
         self.assertSQL(query, (
-            'SELECT "t1"."value", RANK() OVER (ORDER BY "t1"."value") '
+            'SELECT "t1"."value", RANK() OVER ('
+            'ORDER BY "t1"."value" ROWS UNBOUNDED PRECEDING) '
             'FROM "register" AS "t1"'), [])
 
     def test_ordered_partitioned(self):
@@ -711,7 +712,8 @@ class TestWindowFunctions(BaseTestCase):
                 partition_by=Register.category).alias('rsum'))
         self.assertSQL(query, (
             'SELECT "t1"."value", SUM("t1"."value") '
-            'OVER (PARTITION BY "t1"."category" ORDER BY "t1"."id") AS "rsum" '
+            'OVER (PARTITION BY "t1"."category" ORDER BY "t1"."id" '
+            'ROWS UNBOUNDED PRECEDING) AS "rsum" '
             'FROM "register" AS "t1"'), [])
 
     def test_empty_over(self):
@@ -750,6 +752,68 @@ class TestWindowFunctions(BaseTestCase):
             'ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) '
             'FROM "register" AS "t1"'), [])
 
+    def test_frame_as_range(self):
+        query = (Register
+                 .select(
+                     Register.value,
+                     fn.RANK().over(
+                         order_by=[Register.value],
+                         start=Window.CURRENT_ROW,
+                         end=Window.following(),
+                         as_range=True)))
+        self.assertSQL(query, (
+            'SELECT "t1"."value", RANK() OVER ('
+            'ORDER BY "t1"."value" RANGE BETWEEN CURRENT ROW AND '
+            'UNBOUNDED FOLLOWING) FROM "register" AS "t1"'), [])
+
+    def test_rows_vs_range(self):
+        # Possibilities when we include frame specifier:
+        # 1. start and end specified
+        # 2. start specified
+        # 3. ordering specified
+        def assertSQLForWindow(window_kw, sql):
+            query = Register.select(Register.value,
+                                    fn.SUM(Register.value).over(**window_kw))
+            self.assertSQL(query, sql, [])
+
+        # These all explicitly indicate ROWS.
+        assertSQLForWindow(
+            {'start': Window.CURRENT_ROW, 'end': Window.following()},
+            ('SELECT "t1"."value", SUM("t1"."value") OVER ('
+             'ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) '
+             'FROM "register" AS "t1"'))
+        assertSQLForWindow(
+            {'start': Window.preceding(1)},
+            ('SELECT "t1"."value", SUM("t1"."value") OVER (ROWS 1 PRECEDING) '
+             'FROM "register" AS "t1"'))
+        assertSQLForWindow(
+            {'order_by': Register.id},
+            ('SELECT "t1"."value", SUM("t1"."value") OVER ('
+             'ORDER BY "t1"."id" ROWS UNBOUNDED PRECEDING) '
+             'FROM "register" AS "t1"'))
+
+        # RANGE is implied.
+        assertSQLForWindow(
+            {'partition_by': Register.category},
+            ('SELECT "t1"."value", SUM("t1"."value") OVER ('
+             'PARTITION BY "t1"."category") FROM "register" AS "t1"'))
+
+        # RANGE is explicit.
+        assertSQLForWindow(
+            {'start': Window.CURRENT_ROW, 'end': Window.following(),
+             'as_range': True},
+            ('SELECT "t1"."value", SUM("t1"."value") OVER ('
+             'RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) '
+             'FROM "register" AS "t1"'))
+        assertSQLForWindow(
+            {'start': Window.preceding(), 'as_range': True},
+            ('SELECT "t1"."value", SUM("t1"."value") OVER ('
+             'RANGE UNBOUNDED PRECEDING) FROM "register" AS "t1"'))
+        assertSQLForWindow(
+            {'order_by': Register.id, 'as_range': True},
+            ('SELECT "t1"."value", SUM("t1"."value") OVER (ORDER BY "t1"."id")'
+             ' FROM "register" AS "t1"'))
+
     def test_running_total(self):
         EventLog = Table('evtlog', ('id', 'timestamp', 'data'))
 
@@ -759,7 +823,8 @@ class TestWindowFunctions(BaseTestCase):
                  .order_by(EventLog.timestamp))
         self.assertSQL(query, (
             'SELECT "t1"."timestamp", "t1"."data", '
-            'SUM("t1"."timestamp") OVER (ORDER BY "t1"."timestamp") '
+            'SUM("t1"."timestamp") OVER ('
+            'ORDER BY "t1"."timestamp" ROWS UNBOUNDED PRECEDING) '
             'AS "elapsed" '
             'FROM "evtlog" AS "t1" ORDER BY "t1"."timestamp"'), [])
 
@@ -772,7 +837,8 @@ class TestWindowFunctions(BaseTestCase):
         self.assertSQL(query, (
             'SELECT "t1"."timestamp", "t1"."data", '
             'SUM("t1"."timestamp") OVER '
-            '(PARTITION BY "t1"."data" ORDER BY "t1"."timestamp") AS "elapsed"'
+            '(PARTITION BY "t1"."data" ORDER BY "t1"."timestamp" '
+            'ROWS UNBOUNDED PRECEDING) AS "elapsed"'
             ' FROM "evtlog" AS "t1" ORDER BY "t1"."timestamp"'), [])
 
     def test_named_window(self):
@@ -803,7 +869,8 @@ class TestWindowFunctions(BaseTestCase):
             'FROM "register" AS "t1" '
             'WINDOW w AS ('
             'PARTITION BY "t1"."category" '
-            'ORDER BY "t1"."value" DESC)'), [])
+            'ORDER BY "t1"."value" DESC '
+            'ROWS UNBOUNDED PRECEDING)'), [])
 
     def test_multiple_windows(self):
         w1 = Window(partition_by=[Register.category]).alias('w1')
@@ -818,7 +885,7 @@ class TestWindowFunctions(BaseTestCase):
             'SELECT "t1"."value", AVG("t1"."value") OVER w1, RANK() OVER w2 '
             'FROM "register" AS "t1" '
             'WINDOW w1 AS (PARTITION BY "t1"."category"), '
-            'w2 AS (ORDER BY "t1"."value")'), [])
+            'w2 AS (ORDER BY "t1"."value" ROWS UNBOUNDED PRECEDING)'), [])
 
     def test_alias_window(self):
         w = Window(order_by=Register.value).alias('wx')
@@ -830,7 +897,8 @@ class TestWindowFunctions(BaseTestCase):
         self.assertSQL(query, (
             'SELECT "t1"."value", RANK() OVER wz '
             'FROM "register" AS "t1" '
-            'WINDOW wz AS (ORDER BY "t1"."value")'), [])
+            'WINDOW wz AS (ORDER BY "t1"."value" ROWS UNBOUNDED PRECEDING)'),
+            [])
 
     def test_reuse_window(self):
         EventLog = Table('evt', ('id', 'timestamp', 'key'))
@@ -850,7 +918,8 @@ class TestWindowFunctions(BaseTestCase):
             'NTILE(?) OVER w AS "percentile" '
             'FROM "evt" AS "t1" '
             'WINDOW w AS ('
-            'PARTITION BY "t1"."key" ORDER BY "t1"."timestamp") '
+            'PARTITION BY "t1"."key" ORDER BY "t1"."timestamp" '
+            'ROWS UNBOUNDED PRECEDING) '
             'ORDER BY "t1"."timestamp"'), [4, 5, 100])
 
     def test_filter_clause(self):
