@@ -30,8 +30,9 @@ class Signal(object):
 
         key = (name, sender)
         if key not in self._receivers:
-            raise ValueError('receiver named %s for sender=%s not found.' %
-                             (name, sender or 'any'))
+            raise ValueError(
+                f"receiver named {name} for sender={sender or 'any'} not found."
+            )
 
         self._receivers.remove(key)
         self._receiver_list = [(n, r, s) for n, r, s in self._receiver_list
@@ -45,11 +46,11 @@ class Signal(object):
 
     def send(self, instance, *args, **kwargs):
         sender = type(instance)
-        responses = []
-        for n, r, s in self._receiver_list:
-            if s is None or isinstance(instance, s):
-                responses.append((r, r(sender, instance, *args, **kwargs)))
-        return responses
+        return [
+            (r, r(sender, instance, *args, **kwargs))
+            for n, r, s in self._receiver_list
+            if s is None or isinstance(instance, s)
+        ]
 
 
 pre_save = Signal()

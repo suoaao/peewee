@@ -23,9 +23,7 @@ class hybrid_property(object):
         self.expr = expr or fget
 
     def __get__(self, instance, instance_type):
-        if instance is None:
-            return self.expr(instance_type)
-        return self.fget(instance)
+        return self.expr(instance_type) if instance is None else self.fget(instance)
 
     def __set__(self, instance, value):
         if self.fset is None:

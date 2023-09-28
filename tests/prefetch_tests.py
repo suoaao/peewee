@@ -88,9 +88,7 @@ class TestPrefetch(ModelTestCase):
         for person in query:
             notes = []
             for note in person.notes:
-                items = []
-                for item in note.items:
-                    items.append(item.content)
+                items = [item.content for item in note.items]
                 if sort_items:
                     items.sort()
                 notes.append((note.content, items))
@@ -263,12 +261,13 @@ class TestPrefetch(ModelTestCase):
     def test_prefetch_self_join(self):
         def cc(name, parent=None):
             return Category.create(name=name, parent=parent)
+
         root = cc('root')
         p1 = cc('p1', root)
         p2 = cc('p2', root)
         for p in (p1, p2):
             for i in range(2):
-                cc('%s-%s' % (p.name, i + 1), p)
+                cc(f'{p.name}-{i + 1}', p)
 
         Child = Category.alias('child')
         with self.assertQueryCount(2):
@@ -346,12 +345,8 @@ class TestPrefetch(ModelTestCase):
             query = prefetch(people, notes, (likes, Person))
             accum = []
             for person in query:
-                likes = []
-                notes = []
-                for note in person.notes:
-                    notes.append(note.content)
-                for like in person.likes:
-                    likes.append(like.note.content)
+                notes = [note.content for note in person.notes]
+                likes = [like.note.content for like in person.likes]
                 accum.append((person.name, notes, likes))
 
         self.assertEqual(accum, [
@@ -460,9 +455,7 @@ class TestPrefetch(ModelTestCase):
             query = prefetch(people, likes, notes)
             accum = []
             for person in query:
-                liked_notes = []
-                for like in person.likes:
-                    liked_notes.append(like.note.content)
+                liked_notes = [like.note.content for like in person.likes]
                 accum.append((person.name, liked_notes))
 
         self.assertEqual(accum, [

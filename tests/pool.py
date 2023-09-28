@@ -20,8 +20,7 @@ from .base_models import Register
 
 class FakeTransaction(_transaction):
     def _add_history(self, message):
-        self.db.transaction_history.append(
-            '%s%s' % (message, self._conn))
+        self.db.transaction_history.append(f'{message}{self._conn}')
 
     def __enter__(self):
         self._conn = self.db.connection()
@@ -380,9 +379,11 @@ class TestPooledDatabaseIntegration(ModelTestCase):
     def assertConnections(self, expected):
         available = len(self.database._connections)
         in_use = len(self.database._in_use)
-        self.assertEqual(available + in_use, expected,
-                         'expected %s, got: %s available, %s in use'
-                         % (expected, available, in_use))
+        self.assertEqual(
+            available + in_use,
+            expected,
+            f'expected {expected}, got: {available} available, {in_use} in use',
+        )
 
     def test_pooled_database_integration(self):
         # Connection should be open from the setup method.

@@ -54,9 +54,7 @@ logger = logging.getLogger('peewee.pool')
 
 
 def make_int(val):
-    if val is not None and not isinstance(val, (int, float)):
-        return int(val)
-    return val
+    return val if val is None or isinstance(val, (int, float)) else int(val)
 
 
 class MaxConnectionsExceeded(ValueError): pass

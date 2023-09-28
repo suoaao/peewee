@@ -96,9 +96,7 @@ class TestForeignKeyToNonPrimaryKey(ModelTestCase):
         for barcode in ['101', '102']:
             Package.create(barcode=barcode)
             for i in range(2):
-                PackageItem.create(
-                    package=barcode,
-                    title='%s-%s' % (barcode, i))
+                PackageItem.create(package=barcode, title=f'{barcode}-{i}')
 
     def test_fk_resolution(self):
         pi = PackageItem.get(PackageItem.title == '101-0')
@@ -364,7 +362,7 @@ class TestCompositePrimaryKey(ModelTestCase):
             (CKM.f2 == 3)).exists())
 
     def test_delete_instance(self):
-        u1, u2 = [User.create(username='u%s' % i) for i in range(2)]
+        u1, u2 = [User.create(username=f'u{i}') for i in range(2)]
         ut1 = UserThing.create(thing='t1', user=u1)
         ut2 = UserThing.create(thing='t2', user=u1)
         ut3 = UserThing.create(thing='t1', user=u2)

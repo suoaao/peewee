@@ -57,8 +57,9 @@ class TestSelectQuery(BaseTestCase):
         names_vals = [
             ['charlie', 'huey'],
             ('charlie', 'huey'),
-            set(('charlie', 'huey')),
-            frozenset(('charlie', 'huey'))]
+            {'charlie', 'huey'},
+            frozenset(('charlie', 'huey')),
+        ]
 
         for names in names_vals:
             query = (Person
@@ -396,7 +397,7 @@ class TestSelectQuery(BaseTestCase):
             'ON ("t3"."id" = "max_order"."max_id")))'), [])
 
     def test_multi_update_cte(self):
-        data = [(i, 'u%sx' % i) for i in range(1, 3)]
+        data = [(i, f'u{i}x') for i in range(1, 3)]
         vl = ValuesList(data)
         cte = vl.select().cte('uv', columns=('id', 'username'))
         subq = cte.select(cte.c.username).where(cte.c.id == User.c.id)
@@ -718,7 +719,7 @@ class TestSelectQuery(BaseTestCase):
 
     def test_where_convert_to_is_null(self):
         Note = Table('notes', ('id', 'content', 'user_id'))
-        query = Note.select().where(Note.user_id == None)
+        query = Note.select().where(Note.user_id is None)
         self.assertSQL(query, (
             'SELECT "t1"."id", "t1"."content", "t1"."user_id" '
             'FROM "notes" AS "t1" WHERE ("t1"."user_id" IS ?)'), [None])

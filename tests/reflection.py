@@ -79,14 +79,17 @@ class TestReflection(BaseReflectionTestCase):
 
     def test_generate_models(self):
         models = self.introspector.generate_models()
-        self.assertTrue(set((
-            'category',
-            'col_types',
-            'fkpk',
-            'nugget',
-            'nullable',
-            'rel_model',
-            'underscores')).issubset(set(models)))
+        self.assertTrue(
+            {
+                'category',
+                'col_types',
+                'fkpk',
+                'nugget',
+                'nullable',
+                'rel_model',
+                'underscores',
+            }.issubset(set(models))
+        )
 
         def assertIsInstance(obj, klass):
             self.assertTrue(isinstance(obj, klass))
@@ -128,8 +131,8 @@ class TestReflection(BaseReflectionTestCase):
         self.assertEqual(models['category']._meta.indexes, [])
 
         col_types = models['col_types']
-        indexed = set(['f1'])
-        unique = set(['f10'])
+        indexed = {'f1'}
+        unique = {'f10'}
         for field in col_types._meta.sorted_fields:
             self.assertEqual(field.index, field.name in indexed)
             self.assertEqual(field.unique, field.name in unique)
@@ -274,8 +277,10 @@ class TestReflection(BaseReflectionTestCase):
                 if not isinstance(field_class, (list, tuple)):
                     field_class = (field_class,)
                 column = introspected_columns[field_name]
-                self.assertTrue(column.field_class in field_class,
-                                "%s in %s" % (column.field_class, field_class))
+                self.assertTrue(
+                    column.field_class in field_class,
+                    f"{column.field_class} in {field_class}",
+                )
                 self.assertEqual(column.nullable, is_null)
 
     def test_foreign_keys(self):
@@ -438,8 +443,7 @@ class TestReflection(BaseReflectionTestCase):
                 if not isinstance(fields, tuple):
                     fields = (fields,)
                 actual = columns[table][field_name].get_field()
-                self.assertTrue(actual in fields,
-                                '%s not in %s' % (actual, fields))
+                self.assertTrue(actual in fields, f'{actual} not in {fields}')
 
 
 class EventLog(TestModel):
@@ -510,20 +514,21 @@ class TestReflectionDependencies(BaseReflectionTestCase):
 
     def test_generate_dependencies(self):
         models = self.introspector.generate_models(table_names=['tweet'])
-        self.assertEqual(set(models), set(('users', 'tweet')))
+        self.assertEqual(set(models), {'users', 'tweet'})
 
         IUser = models['users']
         ITweet = models['tweet']
 
-        self.assertEqual(set(ITweet._meta.fields), set((
-            'id', 'user', 'content', 'timestamp')))
-        self.assertEqual(set(IUser._meta.fields), set(('id', 'username')))
+        self.assertEqual(
+            set(ITweet._meta.fields), {'id', 'user', 'content', 'timestamp'}
+        )
+        self.assertEqual(set(IUser._meta.fields), {'id', 'username'})
         self.assertTrue(ITweet.user.rel_model is IUser)
         self.assertTrue(ITweet.user.rel_field is IUser.id)
 
     def test_ignore_backrefs(self):
         models = self.introspector.generate_models(table_names=['users'])
-        self.assertEqual(set(models), set(('users',)))
+        self.assertEqual(set(models), {'users'})
 
 
 class Note(TestModel):

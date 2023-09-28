@@ -174,7 +174,7 @@ def make_index_name(table_name, columns):
     index_name = '_'.join((table_name,) + tuple(columns))
     if len(index_name) > 64:
         index_hash = hashlib.md5(index_name.encode('utf-8')).hexdigest()
-        index_name = '%s_%s' % (index_name[:56], index_hash[:7])
+        index_name = f'{index_name[:56]}_{index_hash[:7]}'
     return index_name
 
 
@@ -196,7 +196,7 @@ class SchemaMigrator(object):
             return MySQLMigrator(database)
         elif isinstance(database, SqliteDatabase):
             return SqliteMigrator(database)
-        raise ValueError('Unsupported database: %s' % database)
+        raise ValueError(f'Unsupported database: {database}')
 
     @operation
     def apply_default(self, table, column_name, field):
@@ -250,7 +250,7 @@ class SchemaMigrator(object):
 
     @operation
     def add_unique(self, table, *column_names):
-        constraint_name = 'uniq_%s' % '_'.join(column_names)
+        constraint_name = f"uniq_{'_'.join(column_names)}"
         constraint = NodeList((
             SQL('UNIQUE'),
             EnclosedNodeList([Entity(column) for column in column_names])))
@@ -270,15 +270,15 @@ class SchemaMigrator(object):
                .literal(' ')
                .sql(EnclosedNodeList((Entity(field.rel_field.column_name),))))
         if field.on_delete is not None:
-            ctx = ctx.literal(' ON DELETE %s' % field.on_delete)
+            ctx = ctx.literal(f' ON DELETE {field.on_delete}')
         if field.on_update is not None:
-            ctx = ctx.literal(' ON UPDATE %s' % field.on_update)
+            ctx = ctx.literal(f' ON UPDATE {field.on_update}')
         return ctx
 
     @operation
     def add_foreign_key_constraint(self, table, column_name, rel, rel_column,
                                    on_delete=None, on_update=None):
-        constraint = 'fk_%s_%s_refs_%s' % (table, column_name, rel)
+        constraint = f'fk_{table}_{column_name}_refs_{rel}'
         ctx = (self
                .make_context()
                .literal('ALTER TABLE ')
@@ -293,9 +293,9 @@ class SchemaMigrator(object):
                .sql(Entity(rel_column))
                .literal(')'))
         if on_delete is not None:
-            ctx = ctx.literal(' ON DELETE %s' % on_delete)
+            ctx = ctx.literal(f' ON DELETE {on_delete}')
         if on_update is not None:
-            ctx = ctx.literal(' ON UPDATE %s' % on_update)
+            ctx = ctx.literal(f' ON UPDATE {on_update}')
         return ctx
 
     @operation
@@ -305,7 +305,7 @@ class SchemaMigrator(object):
         # column as a nullable field, then set the value, then add a not null
         # constraint.
         if not field.null and field.default is None:
-            raise ValueError('%s is not null but has no default' % column_name)
+            raise ValueError(f'{column_name} is not null but has no default')
 
         is_foreign_key = isinstance(field, ForeignKeyField)
         if is_foreign_key and not field.rel_field:
@@ -435,7 +435,7 @@ class PostgresqlMigrator(SchemaMigrator):
 
         if len(pk_names) == 1:
             # Check for existence of primary key sequence.
-            seq_name = '%s_%s_seq' % (old_name, pk_names[0])
+            seq_name = f'{old_name}_{pk_names[0]}_seq'
             query = """
                 SELECT 1
                 FROM information_schema.sequences
@@ -443,7 +443,7 @@ class PostgresqlMigrator(SchemaMigrator):
             """
             cursor = self.database.execute_sql(query, (seq_name,))
             if bool(cursor.fetchone()):
-                new_seq_name = '%s_%s_seq' % (new_name, pk_names[0])
+                new_seq_name = f'{new_name}_{pk_names[0]}_seq'
                 operations.append(ParentClass.rename_table(
                     seq_name, new_seq_name))
 
@@ -499,7 +499,7 @@ class MySQLMigrator(SchemaMigrator):
                 .sql(Entity(new_name)))
 
     def _get_column_definition(self, table, column_name):
-        cursor = self.database.execute_sql('DESCRIBE `%s`;' % table)
+        cursor = self.database.execute_sql(f'DESCRIBE `{table}`;')
         rows = cursor.fetchall()
         for row in rows:
             column = MySQLColumn(*row)
@@ -517,12 +517,12 @@ class MySQLMigrator(SchemaMigrator):
              'referenced_table_name IS NOT NULL AND '
              'referenced_column_name IS NOT NULL;'),
             (table, column_name))
-        result = cursor.fetchone()
-        if not result:
+        if result := cursor.fetchone():
+            return result[0]
+        else:
             raise AttributeError(
-                'Unable to find foreign key constraint for '
-                '"%s" on table "%s".' % (table, column_name))
-        return result[0]
+                f'Unable to find foreign key constraint for "{table}" on table "{column_name}".'
+            )
 
     @operation
     def drop_foreign_key_constraint(self, table, column_name):
@@ -547,9 +547,7 @@ class MySQLMigrator(SchemaMigrator):
                          .literal(' MODIFY ')
                          .sql(column_def.sql(is_null=False)))
 
-        fk_objects = dict(
-            (fk.column, fk)
-            for fk in self.database.get_foreign_keys(table))
+        fk_objects = {fk.column: fk for fk in self.database.get_foreign_keys(table)}
         if column not in fk_objects:
             return add_not_null
 
@@ -576,9 +574,7 @@ class MySQLMigrator(SchemaMigrator):
 
     @operation
     def rename_column(self, table, old_name, new_name):
-        fk_objects = dict(
-            (fk.column, fk)
-            for fk in self.database.get_foreign_keys(table))
+        fk_objects = {fk.column: fk for fk in self.database.get_foreign_keys(table)}
         is_foreign_key = old_name in fk_objects
 
         column = self._get_column_definition(table, old_name)
@@ -625,7 +621,7 @@ class SqliteMigrator(SchemaMigrator):
     fk_re = re.compile('FOREIGN KEY\s+\("?([\w]+)"?\)\s+', re.I)
 
     def _get_column_names(self, table):
-        res = self.database.execute_sql('select * from "%s" limit 1' % table)
+        res = self.database.execute_sql(f'select * from "{table}" limit 1')
         return [item[0] for item in res.description]
 
     def _get_create_table(self, table):
@@ -637,11 +633,9 @@ class SqliteMigrator(SchemaMigrator):
 
     @operation
     def _update_column(self, table, column_to_update, fn):
-        columns = set(column.name.lower()
-                      for column in self.database.get_columns(table))
+        columns = {column.name.lower() for column in self.database.get_columns(table)}
         if column_to_update.lower() not in columns:
-            raise ValueError('Column "%s" does not exist on "%s"' %
-                             (column_to_update, table))
+            raise ValueError(f'Column "{column_to_update}" does not exist on "{table}"')
 
         # Get the SQL used to create the given table.
         table, create_table = self._get_create_table(table)
@@ -672,8 +666,7 @@ class SqliteMigrator(SchemaMigrator):
             column_name, = self.column_name_re.match(column_def).groups()
 
             if column_name == column_to_update:
-                new_column_def = fn(column_name, column_def)
-                if new_column_def:
+                if new_column_def := fn(column_name, column_def):
                     new_column_defs.append(new_column_def)
                     original_column_names.append(column_name)
                     column_name, = self.column_name_re.match(
@@ -698,8 +691,8 @@ class SqliteMigrator(SchemaMigrator):
         elif new_column != column_to_update:
             # Update any foreign keys for this column.
             fk_filter_fn = lambda column_def: self.fk_re.sub(
-                'FOREIGN KEY ("%s") ' % new_column,
-                column_def)
+                f'FOREIGN KEY ("{new_column}") ', column_def
+            )
 
         cleaned_columns = []
         for column_def in new_column_defs:
@@ -710,8 +703,8 @@ class SqliteMigrator(SchemaMigrator):
                 cleaned_columns.append(column_def)
 
         # Update the name of the new CREATE TABLE query.
-        temp_table = table + '__tmp__'
-        rgx = re.compile('("?)%s("?)' % table, re.I)
+        temp_table = f'{table}__tmp__'
+        rgx = re.compile(f'("?){table}("?)', re.I)
         create = rgx.sub(
             '\\1%s\\2' % temp_table,
             raw_create)
@@ -720,7 +713,8 @@ class SqliteMigrator(SchemaMigrator):
         columns = ', '.join(cleaned_columns)
         queries = [
             NodeList([SQL('DROP TABLE IF EXISTS'), Entity(temp_table)]),
-            SQL('%s (%s)' % (create.strip(), columns))]
+            SQL(f'{create.strip()} ({columns})'),
+        ]
 
         # Populate new table.
         populate_table = NodeList((
@@ -765,7 +759,7 @@ class SqliteMigrator(SchemaMigrator):
         # Apply the same "split in two" logic to the column list portion of
         # the query.
         if len(rhs.split(column_to_update)) == 2:
-            return '%s(%s' % (lhs, rhs.replace(column_to_update, new_column))
+            return f'{lhs}({rhs.replace(column_to_update, new_column)}'
 
         # Strip off the trailing parentheses and go through each column.
         parts = rhs.rsplit(')', 1)[0].split(',')
@@ -780,7 +774,7 @@ class SqliteMigrator(SchemaMigrator):
                 column = new_columne + column[len(column_to_update):]
             clean.append(column)
 
-        return '%s(%s)' % (lhs, ', '.join('"%s"' % c for c in clean))
+        return f"""{lhs}({', '.join(f'"{c}"' for c in clean)})"""
 
     @operation
     def drop_column(self, table, column_name, cascade=True):
@@ -795,7 +789,8 @@ class SqliteMigrator(SchemaMigrator):
     @operation
     def add_not_null(self, table, column):
         def _add_not_null(column_name, column_def):
-            return column_def + ' NOT NULL'
+            return f'{column_def} NOT NULL'
+
         return self._update_column(table, column, _add_not_null)
 
     @operation

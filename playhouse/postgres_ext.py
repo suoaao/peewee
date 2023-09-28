@@ -160,7 +160,7 @@ class ArrayField(IndexedFieldMixin, Field):
 
     def bind(self, model, name, set_attribute=True):
         ret = super(ArrayField, self).bind(model, name, set_attribute)
-        self.__field.bind(model, '__array_%s' % name, False)
+        self.__field.bind(model, f'__array_{name}', False)
         return ret
 
     def ddl_datatype(self, ctx):
@@ -176,14 +176,14 @@ class ArrayField(IndexedFieldMixin, Field):
             return value if isinstance(value, list) else list(value)
 
     def python_value(self, value):
-        if self.convert_values and value is not None:
-            conv = self.__field.python_value
-            if isinstance(value, list):
-                return self._process(conv, value, self.dimensions)
-            else:
-                return conv(value)
-        else:
+        if not self.convert_values or value is None:
             return value
+        conv = self.__field.python_value
+        return (
+            self._process(conv, value, self.dimensions)
+            if isinstance(value, list)
+            else conv(value)
+        )
 
     def _process(self, conv, value, dimensions):
         dimensions -= 1
@@ -287,9 +287,7 @@ class JSONField(Field):
     def db_value(self, value):
         if value is None:
             return value
-        if not isinstance(value, Json):
-            return Json(value, dumps=self.dumps)
-        return value
+        return Json(value, dumps=self.dumps) if not isinstance(value, Json) else value
 
     def __getitem__(self, value):
         return JsonLookup(self, [value])
@@ -380,11 +378,10 @@ class FetchManyCursor(object):
 
     def row_gen(self):
         while True:
-            rows = self.cursor.fetchmany(self.array_size)
-            if not rows:
+            if rows := self.cursor.fetchmany(self.array_size):
+                yield from rows
+            else:
                 return
-            for row in rows:
-                yield row
 
     def fetchone(self):
         if self.exhausted:
@@ -421,9 +418,7 @@ def ServerSide(query, database=None, array_size=None):
     if database is None:
         database = query._database
     with database.transaction():
-        server_side_query = ServerSideQuery(query, array_size=array_size)
-        for row in server_side_query:
-            yield row
+        yield from ServerSideQuery(query, array_size=array_size)
 
 
 class _empty_object(object):

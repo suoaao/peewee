@@ -56,15 +56,17 @@ def model_to_dict(model, recurse=True, backrefs=False, only=None,
             for fkf in m2m.through_model._meta.refs:
                 exclude.add(fkf)
 
-            accum = []
-            for rel_obj in getattr(model, name):
-                accum.append(model_to_dict(
+            accum = [
+                model_to_dict(
                     rel_obj,
                     recurse=recurse,
                     backrefs=backrefs,
                     only=only,
                     exclude=exclude,
-                    max_depth=max_depth - 1))
+                    max_depth=max_depth - 1,
+                )
+                for rel_obj in getattr(model, name)
+            ]
             data[name] = accum
 
     for field in model._meta.sorted_fields:
@@ -92,11 +94,7 @@ def model_to_dict(model, recurse=True, backrefs=False, only=None,
     if extra_attrs:
         for attr_name in extra_attrs:
             attr = getattr(model, attr_name)
-            if callable_(attr):
-                data[attr_name] = attr()
-            else:
-                data[attr_name] = attr
-
+            data[attr_name] = attr() if callable_(attr) else attr
     if backrefs and recurse:
         for foreign_key, rel_model in model._meta.backrefs.items():
             if foreign_key.backref == '+': continue
@@ -106,19 +104,20 @@ def model_to_dict(model, recurse=True, backrefs=False, only=None,
             if only and (descriptor not in only) and (foreign_key not in only):
                 continue
 
-            accum = []
             exclude.add(foreign_key)
             related_query = getattr(model, foreign_key.backref)
 
-            for rel_obj in related_query:
-                accum.append(model_to_dict(
+            accum = [
+                model_to_dict(
                     rel_obj,
                     recurse=recurse,
                     backrefs=backrefs,
                     only=only,
                     exclude=exclude,
-                    max_depth=max_depth - 1))
-
+                    max_depth=max_depth - 1,
+                )
+                for rel_obj in related_query
+            ]
             data[foreign_key.backref] = accum
 
     return data

@@ -64,7 +64,7 @@ class Hexastore(object):
             if isinstance(condition, dict):
                 condition = (condition['s'], condition['p'], condition['o'])
 
-            GA = self.G.alias('g%s' % i)
+            GA = self.G.alias(f'g{i}')
             for part, val in zip('spo', condition):
                 if isinstance(val, Variable):
                     binds.setdefault(val, [])
@@ -78,9 +78,9 @@ class Hexastore(object):
 
         for var, fields in binds.items():
             selection.append(fields[0].alias(var.name))
-            pairwise = [(fields[i - 1] == fields[i])
-                        for i in range(1, len(fields))]
-            if pairwise:
+            if pairwise := [
+                (fields[i - 1] == fields[i]) for i in range(1, len(fields))
+            ]:
                 accum.append(reduce(operator.and_, pairwise))
             sources.update([field.source for field in fields])
 
@@ -106,7 +106,7 @@ class Variable(object):
         return hash(self.name)
 
     def __repr__(self):
-        return '<Variable: %s>' % self.name
+        return f'<Variable: {self.name}>'
 
 
 if __name__ == '__main__':
@@ -139,7 +139,7 @@ if __name__ == '__main__':
         ('zaizee', 'lives', 'lawrence'),
     )
     h.store_many(data)
-    print('added %s items to store' % len(data))
+    print(f'added {len(data)} items to store')
 
     print('\nwho lives in topeka?')
     for obj in h.query(p='lives', o='topeka'):

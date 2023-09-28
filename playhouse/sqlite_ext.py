@@ -54,8 +54,7 @@ class RowIDField(AutoField):
 
     def bind(self, model, name, *args):
         if name != self.required_name:
-            raise ValueError('%s must be named "%s".' %
-                             (type(self), self.required_name))
+            raise ValueError(f'{type(self)} must be named "{self.required_name}".')
         super(RowIDField, self).bind(model, name, *args)
 
 
@@ -77,13 +76,10 @@ class JSONPath(ColumnBase):
 
     @property
     def path(self):
-        return Value('$%s' % ''.join(self._path))
+        return Value(f"${''.join(self._path)}")
 
     def __getitem__(self, idx):
-        if isinstance(idx, int):
-            item = '[%s]' % idx
-        else:
-            item = '.%s' % idx
+        item = f'[{idx}]' if isinstance(idx, int) else f'.{idx}'
         return JSONPath(self._field, self._path + (item,))
 
     def set(self, value, as_json=None):
@@ -283,12 +279,12 @@ class BaseFTSModel(VirtualModel):
         if prefix:
             if isinstance(prefix, (list, tuple)):
                 prefix = ','.join([str(i) for i in prefix])
-            options['prefix'] = "'%s'" % prefix.strip("' ")
+            options['prefix'] = f"""'{prefix.strip("' ")}'"""
 
         if tokenize and cls._meta.extension_module.lower() == 'fts5':
             # Tokenizers need to be in quoted string for FTS5, but not for FTS3
             # or FTS4.
-            options['tokenize'] = '"%s"' % tokenize
+            options['tokenize'] = f'"{tokenize}"'
 
         return options
 
@@ -309,7 +305,8 @@ class FTSModel(BaseFTSModel):
     def _fts_cmd(cls, cmd):
         tbl = cls._meta.table_name
         res = cls._meta.database.execute_sql(
-            "INSERT INTO %s(%s) VALUES('%s');" % (tbl, tbl, cmd))
+            f"INSERT INTO {tbl}({tbl}) VALUES('{cmd}');"
+        )
         return res.fetchone()
 
     @classmethod
@@ -326,11 +323,11 @@ class FTSModel(BaseFTSModel):
 
     @classmethod
     def merge(cls, blocks=200, segments=8):
-        return cls._fts_cmd('merge=%s,%s' % (blocks, segments))
+        return cls._fts_cmd(f'merge={blocks},{segments}')
 
     @classmethod
     def automerge(cls, state=True):
-        return cls._fts_cmd('automerge=%s' % (state and '1' or '0'))
+        return cls._fts_cmd(f"automerge={state and '1' or '0'}")
 
     @classmethod
     def match(cls, term):
@@ -375,10 +372,8 @@ class FTSModel(BaseFTSModel):
         else:
             rank = score_fn(*weights)
 
-        selection = ()
         order_by = rank
-        if with_score:
-            selection = (cls, rank.alias(score_alias))
+        selection = (cls, rank.alias(score_alias)) if with_score else ()
         if with_score and not explicit_ordering:
             order_by = SQL(score_alias)
 
@@ -437,11 +432,13 @@ class FTSModel(BaseFTSModel):
 
 
 _alphabet = 'abcdefghijklmnopqrstuvwxyz'
-_alphanum = (set('\t ,"(){}*:_+0123456789') |
-             set(_alphabet) |
-             set(_alphabet.upper()) |
-             set((chr(26),)))
-_invalid_ascii = set(chr(p) for p in range(128) if chr(p) not in _alphanum)
+_alphanum = (
+    set('\t ,"(){}*:_+0123456789')
+    | set(_alphabet)
+    | set(_alphabet.upper())
+    | {chr(26)}
+)
+_invalid_ascii = {chr(p) for p in range(128) if chr(p) not in _alphanum}
 _quote_re = re.compile('(?:[^\s"]|"(?:\\.|[^"])*")+')
 
 
@@ -574,16 +571,13 @@ class FTS5Model(BaseFTSModel):
                 accum.append(token)
                 continue
             token_set = set(token)
-            invalid_for_token = token_set & _invalid_ascii
-            if invalid_for_token:
+            if invalid_for_token := token_set & _invalid_ascii:
                 any_invalid = True
                 for c in invalid_for_token:
                     token = token.replace(c, replace)
             accum.append(token)
 
-        if any_invalid:
-            return ' '.join(accum)
-        return query
+        return ' '.join(accum) if any_invalid else query
 
     @classmethod
     def match(cls, term):
@@ -618,19 +612,17 @@ class FTS5Model(BaseFTSModel):
         if not weights:
             rank = SQL('rank')
         elif isinstance(weights, dict):
-            weight_args = []
-            for field in cls._meta.sorted_fields:
-                if isinstance(field, SearchField) and not field.unindexed:
-                    weight_args.append(
-                        weights.get(field, weights.get(field.name, 1.0)))
+            weight_args = [
+                weights.get(field, weights.get(field.name, 1.0))
+                for field in cls._meta.sorted_fields
+                if isinstance(field, SearchField) and not field.unindexed
+            ]
             rank = fn.bm25(cls._meta.entity, *weight_args)
         else:
             rank = fn.bm25(cls._meta.entity, *weights)
 
-        selection = ()
         order_by = rank
-        if with_score:
-            selection = (cls, rank.alias(score_alias))
+        selection = (cls, rank.alias(score_alias)) if with_score else ()
         if with_score and not explicit_ordering:
             order_by = SQL(score_alias)
 
@@ -688,15 +680,19 @@ class FTS5Model(BaseFTSModel):
             raise ValueError('table_type must be either "row", "col" or '
                              '"instance".')
 
-        attr = '_vocab_model_%s' % table_type
+        attr = f'_vocab_model_{table_type}'
 
         if not hasattr(cls, attr):
+
+
+
             class Meta:
                 database = cls._meta.database
-                table_name = table or cls._meta.table_name + '_v'
+                table_name = table or f'{cls._meta.table_name}_v'
                 extension_module = fn.fts5vocab(
                     cls._meta.entity,
                     SQL(table_type))
+
 
             attrs = {
                 'term': VirtualField(TextField),
@@ -710,7 +706,7 @@ class FTS5Model(BaseFTSModel):
             elif table_type == 'instance':
                 attrs['offset'] = VirtualField(IntegerField)
 
-            class_name = '%sVocab' % cls.__name__
+            class_name = f'{cls.__name__}Vocab'
             setattr(cls, attr, type(class_name, (VirtualModel,), attrs))
 
         return getattr(cls, attr)
@@ -803,7 +799,7 @@ def ClosureTable(model_class, foreign_key=None, referencing_class=None,
             'parentcolumn': foreign_key.column_name}
         primary_key = False
 
-    name = '%sClosure' % model_class.__name__
+    name = f'{model_class.__name__}Closure'
     return type(name, (BaseClosureTable,), {'Meta': Meta})
 
 
@@ -818,9 +814,8 @@ class LSMTable(VirtualModel):
         if not filename:
             raise ValueError('LSM1 extension requires that you specify a '
                              'filename for the LSM database.')
-        else:
-            if len(filename) >= 2 and filename[0] != '"':
-                filename = '"%s"' % filename
+        if len(filename) >= 2 and filename[0] != '"':
+            filename = f'"{filename}"'
         if not cls._meta.primary_key:
             raise ValueError('LSM1 models must specify a primary-key field.')
 
@@ -838,7 +833,7 @@ class LSMTable(VirtualModel):
             data_type = 'BLOB'
         else:
             data_type = 'TEXT'
-        cls._meta.prefix_arguments = [filename, '"%s"' % key.name, data_type]
+        cls._meta.prefix_arguments = [filename, f'"{key.name}"', data_type]
 
         # Does the key map to a scalar value, or a tuple of values?
         if len(cls._meta.sorted_fields) == 2:
@@ -880,23 +875,20 @@ class LSMTable(VirtualModel):
             cls._meta.primary_key,
             pk)
 
-        if is_single:
-            try:
-                row = query.get()
-            except cls.DoesNotExist:
-                raise KeyError(pk)
-            return row[1] if cls._meta._value_field is not None else row
-        else:
+        if not is_single:
             return query
+        try:
+            row = query.get()
+        except cls.DoesNotExist:
+            raise KeyError(pk)
+        return row[1] if cls._meta._value_field is not None else row
 
     @classmethod
     def set_by_id(cls, key, value):
         if cls._meta._value_field is not None:
             data = {cls._meta._value_field: value}
         elif isinstance(value, tuple):
-            data = {}
-            for field, fval in zip(cls._meta.sorted_fields[1:], value):
-                data[field] = fval
+            data = dict(zip(cls._meta.sorted_fields[1:], value))
         elif isinstance(value, dict):
             data = value
         elif isinstance(value, cls):
@@ -1126,10 +1118,9 @@ def _parse_match_info(buf):
 def get_weights(ncol, raw_weights):
     if not raw_weights:
         return [1] * ncol
-    else:
-        weights = [0] * ncol
-        for i, weight in enumerate(raw_weights):
-            weights[i] = weight
+    weights = [0] * ncol
+    for i, weight in enumerate(raw_weights):
+        weights[i] = weight
     return weights
 
 # Ranking implementation, which parse matchinfo.
@@ -1246,16 +1237,17 @@ def _json_contains(src_json, obj_json):
             elif obj not in src:
                 return False
         elif isinstance(src, list):
-            if isinstance(obj, dict):
+            if (
+                isinstance(obj, dict)
+                or not isinstance(obj, list)
+                and obj not in src
+            ):
                 return False
             elif isinstance(obj, list):
                 try:
-                    for i in range(len(obj)):
-                        stack.append((obj[i], src[i]))
+                    stack.extend((obj[i], src[i]) for i in range(len(obj)))
                 except IndexError:
                     return False
-            elif obj not in src:
-                return False
         elif obj != src:
             return False
     return True

@@ -165,7 +165,7 @@ class TestPwiz(BasePwizTestCase):
         self.assertEqual(output.data.strip(), EXPECTED)
 
     def test_print_header(self):
-        cmdline = '-i -e sqlite %s' % db.database
+        cmdline = f'-i -e sqlite {db.database}'
 
         with capture_output() as output:
             with mock.patch('pwiz.datetime.datetime') as mock_datetime:

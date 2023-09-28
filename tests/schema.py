@@ -88,10 +88,10 @@ class TestModelDDL(ModelDatabaseTestCase):
         self.assertEqual([sql] + indexes, expected)
 
     def assertIndexes(self, model_class, expected):
-        indexes = []
-        for create_index in model_class._schema._create_indexes(False):
-            indexes.append(create_index.query())
-
+        indexes = [
+            create_index.query()
+            for create_index in model_class._schema._create_indexes(False)
+        ]
         self.assertEqual(indexes, expected)
 
     def test_model_fk_schema(self):
@@ -302,15 +302,22 @@ class TestModelDDL(ModelDatabaseTestCase):
              '"value" TEXT NOT NULL)')])
 
     def test_db_table(self):
+
         class A(TestModel):
             class Meta:
                 database = self.database
                 db_table = 'A_tbl'
+
+
         class B(TestModel):
-            a = ForeignKeyField(A, backref='bs')
+
+
             class Meta:
+                a = ForeignKeyField(A, backref='bs')
                 database = self.database
                 db_table = 'B_tbl'
+
+
         self.assertCreateTable(A, [
             'CREATE TABLE "A_tbl" ("id" INTEGER NOT NULL PRIMARY KEY)'])
         self.assertCreateTable(B, [
@@ -703,7 +710,7 @@ class TestTruncateTable(ModelTestCase):
 
     def test_truncate_table(self):
         for i in range(3):
-            User.create(username='u%s' % i)
+            User.create(username=f'u{i}')
 
         ctx = User._schema._truncate_table()
         if IS_SQLITE:

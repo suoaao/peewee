@@ -54,7 +54,7 @@ class assert_query_count(count_queries):
         return decorated
 
     def _assert_count(self):
-        error_msg = '%s != %s' % (self.count, self.expected)
+        error_msg = f'{self.count} != {self.expected}'
         assert self.count == self.expected, error_msg
 
     def __exit__(self, exc_type, exc_val, exc_tb):

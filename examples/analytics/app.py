@@ -115,8 +115,7 @@ def analyze():
 
 @app.route('/a.js')
 def script():
-    account_id = request.args.get('id')
-    if account_id:
+    if account_id := request.args.get('id'):
         return Response(
             app.config['JAVASCRIPT'] % (app.config['DOMAIN'], account_id),
             mimetype='text/javascript')

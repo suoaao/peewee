@@ -71,15 +71,11 @@ def bulk_create(i):
 @timed
 def select(i):
     query = Register.select()
-    for row in query:
-        pass
 
 @timed
 def select_related_dbapi_raw(i):
     query = Item.select(Item, Collection).join(Collection)
     cursor = db.execute(query)
-    for row in cursor:
-        pass
 
 @timed
 def insert_related(i):
@@ -89,20 +85,14 @@ def insert_related(i):
 @timed
 def select_related(i):
     query = Item.select(Item, Collection).join(Collection)
-    for item in query:
-        pass
 
 @timed
 def select_related_left(i):
     query = Collection.select(Collection, Item).join(Item, JOIN.LEFT_OUTER)
-    for collection in query:
-        pass
 
 @timed
 def select_related_dicts(i):
     query = Item.select(Item, Collection).join(Collection).dicts()
-    for row in query:
-        pass
 
 
 if __name__ == '__main__':

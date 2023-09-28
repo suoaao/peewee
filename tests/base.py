@@ -26,13 +26,16 @@ def db_loader(engine, name='peewee_test', db_class=None, **params):
             PostgresqlDatabase: ['postgres', 'postgresql'],
             MySQLConnectorDatabase: ['mysqlconnector'],
         }
-        engine_map = dict((alias, db) for db, aliases in engine_aliases.items()
-                          for alias in aliases)
+        engine_map = {
+            alias: db
+            for db, aliases in engine_aliases.items()
+            for alias in aliases
+        }
         if engine.lower() not in engine_map:
-            raise Exception('Unsupported engine: %s.' % engine)
+            raise Exception(f'Unsupported engine: {engine}.')
         db_class = engine_map[engine.lower()]
     if issubclass(db_class, SqliteDatabase) and not name.endswith('.db'):
-        name = '%s.db' % name if name != ':memory:' else name
+        name = f'{name}.db' if name != ':memory:' else name
     elif issubclass(db_class, MySQLDatabase):
         params.update(MYSQL_PARAMS)
     elif issubclass(db_class, PostgresqlDatabase):
@@ -54,11 +57,12 @@ IS_POSTGRESQL = BACKEND in ('postgres', 'postgresql')
 
 def make_db_params(key):
     params = {}
-    env_vars = [(part, 'PEEWEE_%s_%s' % (key, part.upper()))
-                for part in ('host', 'port', 'user', 'password')]
+    env_vars = [
+        (part, f'PEEWEE_{key}_{part.upper()}')
+        for part in ('host', 'port', 'user', 'password')
+    ]
     for param, env_var in env_vars:
-        value = os.environ.get(env_var)
-        if value:
+        if value := os.environ.get(env_var):
             params[param] = int(value) if param == 'port' else value
     return params
 
@@ -144,7 +148,7 @@ class BaseTestCase(unittest.TestCase):
             yield
         except Exception as exc:
             if not isinstance(exc, exceptions):
-                raise AssertionError('Got %s, expected %s' % (exc, exceptions))
+                raise AssertionError(f'Got {exc}, expected {exceptions}')
         else:
             raise AssertionError('No exception was raised.')
 

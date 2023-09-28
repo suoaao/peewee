@@ -25,7 +25,7 @@ ADMIN_PASSWORD = 'secret'
 APP_DIR = os.path.dirname(os.path.realpath(__file__))
 
 # The playhouse.flask_utils.FlaskDB object accepts database URL configuration.
-DATABASE = 'sqliteext:///%s' % os.path.join(APP_DIR, 'blog.db')
+DATABASE = f"sqliteext:///{os.path.join(APP_DIR, 'blog.db')}"
 DEBUG = False
 
 # The secret key is used internally by Flask to encrypt session data stored
@@ -118,13 +118,12 @@ class Entry(flask_db.Model):
 
     @classmethod
     def search(cls, query):
-        words = [word.strip() for word in query.split() if word.strip()]
-        if not words:
-            # Return an empty query.
-            return Entry.noop()
-        else:
+        if words := [word.strip() for word in query.split() if word.strip()]:
             search = ' '.join(words)
 
+        else:
+            # Return an empty query.
+            return Entry.noop()
         # Query the full-text search index for entries matching the given
         # search query, then join the actual Entry data on the matching
         # search result.
@@ -228,10 +227,7 @@ def drafts():
 
 @app.route('/<slug>/')
 def detail(slug):
-    if session.get('logged_in'):
-        query = Entry.select()
-    else:
-        query = Entry.public()
+    query = Entry.select() if session.get('logged_in') else Entry.public()
     entry = get_object_or_404(query, Entry.slug == slug)
     return render_template('detail.html', entry=entry)
 
@@ -248,7 +244,7 @@ def clean_querystring(request_args, *keys_to_remove, **new_values):
     # querystring while replacing any that we need to overwrite. For instance
     # if your URL is /?q=search+query&page=2 and we want to preserve the search
     # term but make a link to page 3, this filter will allow us to do that.
-    querystring = dict((key, value) for key, value in request_args.items())
+    querystring = dict(request_args.items())
     for key in keys_to_remove:
         querystring.pop(key, None)
     querystring.update(new_values)

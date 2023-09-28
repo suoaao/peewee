@@ -105,7 +105,7 @@ def auth_user(user):
     session['logged_in'] = True
     session['user_id'] = user.id
     session['username'] = user.username
-    flash('You are logged in as %s' % (user.username))
+    flash(f'You are logged in as {user.username}')
 
 # get the user from the session
 def get_current_user():
@@ -166,10 +166,7 @@ def after_request(response):
 def homepage():
     # depending on whether the requesting user is logged in or not, show them
     # either the public timeline or their own private timeline
-    if session.get('logged_in'):
-        return private_timeline()
-    else:
-        return public_timeline()
+    return private_timeline() if session.get('logged_in') else public_timeline()
 
 @app.route('/private/')
 def private_timeline():
@@ -274,7 +271,7 @@ def user_follow(username):
     except IntegrityError:
         pass
 
-    flash('You are following %s' % user.username)
+    flash(f'You are following {user.username}')
     return redirect(url_for('user_detail', username=user.username))
 
 @app.route('/users/<username>/unfollow/', methods=['POST'])
@@ -287,7 +284,7 @@ def user_unfollow(username):
          (Relationship.from_user == get_current_user()) &
          (Relationship.to_user == user))
      .execute())
-    flash('You are no longer following %s' % user.username)
+    flash(f'You are no longer following {user.username}')
     return redirect(url_for('user_detail', username=user.username))
 
 @app.route('/create/', methods=['GET', 'POST'])

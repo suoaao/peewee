@@ -84,10 +84,10 @@ class TestMySQLJSONField(ModelTestCase):
             {'k3': [0, 1.0, 2.3], 'k4': {'x1': 'y1', 'x2': 'y2'}})
         for i, value in enumerate(values):
             # Verify data can be written.
-            kj = KJ.create(key='k%s' % i, data=value)
+            kj = KJ.create(key=f'k{i}', data=value)
 
             # Verify value is deserialized correctly.
-            kj_db = KJ['k%s' % i]
+            kj_db = KJ[f'k{i}']
             self.assertEqual(kj_db.data, value)
 
         with self.assertRaises(IntegrityError):

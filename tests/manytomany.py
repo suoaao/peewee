@@ -222,7 +222,7 @@ class TestManyToMany(ModelTestCase):
         for username in sorted(self.user_to_note):
             User.create(username=username)
         for i in range(5):
-            Note.create(text='note-%s' % (i + 1))
+            Note.create(text=f'note-{i + 1}')
 
     def test_through_model(self):
         self.assertEqual(len(NoteUserThrough._meta.fields), 3)
@@ -241,14 +241,11 @@ class TestManyToMany(ModelTestCase):
         for username, notes in self.user_to_note.items():
             user = User.get(User.username == username)
             for note in notes:
-                NoteUserThrough.create(
-                    note=Note.get(Note.text == 'note-%s' % note),
-                    user=user)
+                NoteUserThrough.create(note=Note.get(Note.text == f'note-{note}'), user=user)
 
     def assertNotes(self, query, expected):
         notes = [note.text for note in query]
-        self.assertEqual(sorted(notes),
-                         ['note-%s' % i for i in sorted(expected)])
+        self.assertEqual(sorted(notes), [f'note-{i}' for i in sorted(expected)])
 
     def assertUsers(self, query, expected):
         usernames = [user.username for user in query]
@@ -463,10 +460,7 @@ class TestManyToMany(ModelTestCase):
 
     def test_manual_through(self):
         gargie, huey, mickey, zaizee = User.select().order_by(User.username)
-        alt_notes = []
-        for i in range(5):
-            alt_notes.append(AltNote.create(text='note-%s' % (i + 1)))
-
+        alt_notes = [AltNote.create(text=f'note-{i + 1}') for i in range(5)]
         self.assertNotes(gargie.altnotes, [])
         for alt_note in alt_notes:
             self.assertUsers(alt_note.users, [])

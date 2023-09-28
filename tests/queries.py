@@ -163,24 +163,23 @@ class TestQueryCloning(BaseTestCase):
 
         qw = query.where(Tweet.id > 3)
         self.assertSQL(query, base_sql, [])
-        self.assertSQL(qw, base_sql + ' WHERE ("t1"."id" > ?)', [3])
+        self.assertSQL(qw, f'{base_sql} WHERE ("t1"."id" > ?)', [3])
 
         qw2 = qw.where(Tweet.id < 6)
         self.assertSQL(query, base_sql, [])
-        self.assertSQL(qw, base_sql + ' WHERE ("t1"."id" > ?)', [3])
+        self.assertSQL(qw, f'{base_sql} WHERE ("t1"."id" > ?)', [3])
         self.assertSQL(qw2, base_sql + (' WHERE (("t1"."id" > ?) '
                                         'AND ("t1"."id" < ?))'), [3, 6])
 
         qo = query.order_by(Tweet.id)
         self.assertSQL(query, base_sql, [])
-        self.assertSQL(qo, base_sql + ' ORDER BY "t1"."id"', [])
+        self.assertSQL(qo, f'{base_sql} ORDER BY "t1"."id"', [])
 
         qo2 = qo.order_by(Tweet.content, Tweet.id)
         self.assertSQL(query, base_sql, [])
-        self.assertSQL(qo, base_sql + ' ORDER BY "t1"."id"', [])
-        self.assertSQL(qo2,
-                       base_sql + ' ORDER BY "t1"."content", "t1"."id"', [])
+        self.assertSQL(qo, f'{base_sql} ORDER BY "t1"."id"', [])
+        self.assertSQL(qo2, f'{base_sql} ORDER BY "t1"."content", "t1"."id"', [])
 
         qg = query.group_by(Tweet.id)
         self.assertSQL(query, base_sql, [])
-        self.assertSQL(qg, base_sql + ' GROUP BY "t1"."id"', [])
+        self.assertSQL(qg, f'{base_sql} GROUP BY "t1"."id"', [])

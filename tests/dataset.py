@@ -46,7 +46,7 @@ class TestDataSet(ModelTestCase):
             os.unlink(self.database.database)
         super(TestDataSet, self).setUp()
 
-        self.dataset = DataSet('sqlite:///%s' % self.database.database)
+        self.dataset = DataSet(f'sqlite:///{self.database.database}')
 
     def tearDown(self):
         self.dataset.close()
@@ -70,7 +70,7 @@ class TestDataSet(ModelTestCase):
         self.database.execute_sql('CREATE TABLE "hello!!world" ("data" TEXT);')
         self.database.execute_sql('INSERT INTO "hello!!world" VALUES (?)',
                                   ('test',))
-        ds = DataSet('sqlite:///%s' % self.database.database)
+        ds = DataSet(f'sqlite:///{self.database.database}')
         table = ds['hello!!world']
         model = table.model_class
         self.assertEqual(model._meta.table_name, 'hello!!world')
@@ -233,7 +233,7 @@ class TestDataSet(ModelTestCase):
         self.assertEqual(len(user), 5)
 
         # __iter__()
-        users = sorted([u for u in user], key=operator.itemgetter('username'))
+        users = sorted(list(user), key=operator.itemgetter('username'))
         self.assertEqual(users[0], {'username': 'charlie'})
         self.assertEqual(users[-1], {'username': 'zaizee'})
 
@@ -248,9 +248,10 @@ class TestDataSet(ModelTestCase):
         note = self.dataset['note']
         for i in range(1, 4):
             note.insert(
-                content='note %s' % i,
+                content=f'note {i}',
                 timestamp=datetime.date(2014, 1, i),
-                user_id='charlie')
+                user_id='charlie',
+            )
 
         notes = sorted(note.all(), key=operator.itemgetter('id'))
         self.assertEqual(notes[0], {
@@ -406,9 +407,7 @@ class TestDataSet(ModelTestCase):
         self.assertEqual(count, 3)
 
         names = [row['name'] for row in self.dataset['people'].all()]
-        self.assertEqual(
-            set(names),
-            set(['charlie', 'huey', 'mickey', 'zaizee']))
+        self.assertEqual(set(names), {'charlie', 'huey', 'mickey', 'zaizee'})
 
         # The columns have not changed.
         self.assertEqual(table.columns, ['id', 'name'])
@@ -427,9 +426,7 @@ class TestDataSet(ModelTestCase):
         count = self.dataset.thaw('more_people', 'json', file_obj=buf)
         self.assertEqual(count, 4)
 
-        self.assertEqual(
-            set(table.columns),
-            set(['id', 'name', 'bar', 'foo']))
+        self.assertEqual(set(table.columns), {'id', 'name', 'bar', 'foo'})
         self.assertEqual(sorted(table.all(), key=lambda row: row['id']), [
             {'id': 1, 'name': 'zaizee', 'foo': 1, 'bar': None},
             {'id': 2, 'name': 'huey', 'foo': None, 'bar': None},
@@ -455,9 +452,7 @@ class TestDataSet(ModelTestCase):
         self.assertEqual(count, 3)
 
         names = [row['name'] for row in self.dataset['people'].all()]
-        self.assertEqual(
-            set(names),
-            set(['charlie', 'huey', 'mickey', 'zaizee']))
+        self.assertEqual(set(names), {'charlie', 'huey', 'mickey', 'zaizee'})
 
         # The columns have not changed.
         self.assertEqual(table.columns, ['id', 'name'])
@@ -476,9 +471,7 @@ class TestDataSet(ModelTestCase):
         count = self.dataset.thaw('more_people', 'csv', file_obj=buf)
         self.assertEqual(count, 3)
 
-        self.assertEqual(
-            set(table.columns),
-            set(['id', 'name', 'bar', 'foo']))
+        self.assertEqual(set(table.columns), {'id', 'name', 'bar', 'foo'})
         self.assertEqual(sorted(table.all(), key=lambda row: row['id']), [
             {'id': 1, 'name': 'zaizee', 'foo': '1', 'bar': ''},
             {'id': 2, 'name': 'huey', 'foo': '2', 'bar': 'foo'},
