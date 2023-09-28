@@ -33,7 +33,7 @@ class Person(TestModel):
 
     @hybrid_property
     def full_name(self):
-        return self.first + ' ' + self.last
+        return f'{self.first} {self.last}'
 
 
 class TestHybridProperties(ModelTestCase):

@@ -700,8 +700,9 @@ class TestBinaryJsonField(BaseJsonFieldTestCase, ModelTestCase):
             ['k4', 'k1']]
 
         self._bjson_objects = []
-        for json_value in data:
-            self._bjson_objects.append(BJson.create(data=json_value))
+        self._bjson_objects.extend(
+            BJson.create(data=json_value) for json_value in data
+        )
 
     def assertObjects(self, expr, *indexes):
         query = (BJson

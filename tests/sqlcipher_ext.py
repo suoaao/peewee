@@ -155,7 +155,8 @@ class SqlCipherExtTestCase(CleanUpModelTestCase):
         self.assertRaises(
             DatabaseError,
             alt_conn.execute_sql,
-            'SELECT * FROM "%s"' % (FTSNote._meta.table_name))
+            f'SELECT * FROM "{FTSNote._meta.table_name}"',
+        )
 
     def test_func(self):
         Note.create(content='hello')

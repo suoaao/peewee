@@ -255,12 +255,11 @@ class TestDateFields(ModelTestCase):
             date_time=datetime.datetime(2001, 2, 3, 4, 5, 6, 7),
             date=datetime.date(2002, 3, 4))
 
-        accum = []
-        for p in ('year', 'month', 'day', 'hour', 'minute', 'second'):
-            accum.append(DateModel.date_time.truncate(p))
-        for p in ('year', 'month', 'day'):
-            accum.append(DateModel.date.truncate(p))
-
+        accum = [
+            DateModel.date_time.truncate(p)
+            for p in ('year', 'month', 'day', 'hour', 'minute', 'second')
+        ]
+        accum.extend(DateModel.date.truncate(p) for p in ('year', 'month', 'day'))
         query = DateModel.select(*accum).tuples()
         data = list(query[0])
 
@@ -309,7 +308,7 @@ class TestDateFields(ModelTestCase):
     def test_distinct_date_part(self):
         years = (1980, 1990, 2000, 2010)
         for i, year in enumerate(years):
-            for j in range(i + 1):
+            for _ in range(i + 1):
                 DateModel.create(date=datetime.date(year, i + 1, 1))
 
         query = (DateModel
@@ -389,7 +388,7 @@ class TestForeignKeyField(ModelTestCase):
             for username in ('u1', 'u2', 'u3'):
                 user = U2.create(username=username)
                 for i in range(3):
-                    T2.create(user=user, content='%s-%s' % (username, i))
+                    T2.create(user=user, content=f'{username}-{i}')
 
         self.assertEqual(T2.select().count(), 9)
         U2.delete().where(U2.username == 'u2').execute()
@@ -990,9 +989,7 @@ class TestTimestampField(ModelTestCase):
         attrs = ('year', 'month', 'day', 'hour', 'minute', 'second')
         selection = []
         for field in fields:
-            for attr in attrs:
-                selection.append(getattr(field, attr))
-
+            selection.extend(getattr(field, attr) for attr in attrs)
         row = TSModel.select(*selection).tuples()[0]
 
         # First ensure that all 3 fields are returning the same data.
@@ -1192,7 +1189,7 @@ class TestForeignKeyLazyLoad(ModelTestCase):
     def setUp(self):
         super(TestForeignKeyLazyLoad, self).setUp()
         with self.database.atomic():
-            a1, a2, a3, a4 = [NQ.create(name='a%s' % i) for i in range(1, 5)]
+            a1, a2, a3, a4 = [NQ.create(name=f'a{i}') for i in range(1, 5)]
             ai = NQItem.create(nq=a1, nq_null=a2, nq_lazy=a3, nq_lazy_null=a4)
 
             b = NQ.create(name='b')
@@ -1237,7 +1234,7 @@ class TestForeignKeyLazyLoad(ModelTestCase):
         # If we explicitly / eagerly select lazy foreign-key models, they
         # behave just like regular foreign keys.
         with self.assertQueryCount(1):
-            ai, bi = [ni for ni in query]
+            ai, bi = list(query)
             self.assertEqual(ai.nq.name, 'a1')
             self.assertEqual(ai.nq_null.name, 'a2')
             self.assertEqual(ai.nq_lazy.name, 'a3')

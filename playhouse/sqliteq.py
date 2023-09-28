@@ -225,7 +225,7 @@ class SqliteQueueDatabase(SqliteExtDatabase):
 
     def _validate_journal_mode(self, pragmas=None):
         if pragmas:
-            pdict = dict((k.lower(), v) for (k, v) in pragmas)
+            pdict = {k.lower(): v for (k, v) in pragmas}
             if pdict.get('journal_mode', 'wal').lower() != 'wal':
                 raise ValueError(self.WAL_MODE_ERROR_MESSAGE)
 

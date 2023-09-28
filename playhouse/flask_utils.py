@@ -32,9 +32,7 @@ class PaginatedQuery(object):
             return self.page
 
         curr_page = request.args.get(self.page_var)
-        if curr_page and curr_page.isdigit():
-            return max(1, int(curr_page))
-        return 1
+        return max(1, int(curr_page)) if curr_page and curr_page.isdigit() else 1
 
     def get_page_count(self):
         if not hasattr(self, '_page_count'):
@@ -75,7 +73,7 @@ def object_list(template_name, query, context_variable='object_list',
 def get_current_url():
     if not request.query_string:
         return request.path
-    return '%s?%s' % (request.path, request.query_string)
+    return f'{request.path}?{request.query_string}'
 
 def get_next_url(default='/'):
     if request.args.get('next'):
@@ -143,9 +141,9 @@ class FlaskDB(object):
             database_class = getattr(module, class_name)
             assert issubclass(database_class, Database)
         except ImportError:
-            raise RuntimeError('Unable to import %s' % engine)
+            raise RuntimeError(f'Unable to import {engine}')
         except AttributeError:
-            raise RuntimeError('Database engine not found %s' % engine)
+            raise RuntimeError(f'Database engine not found {engine}')
         except AssertionError:
             raise RuntimeError('Database engine not a subclass of '
                                'peewee.Database: %s' % engine)

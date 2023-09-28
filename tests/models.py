@@ -74,10 +74,7 @@ class TestModelAPIs(ModelTestCase):
         return User.create(username=username)
 
     def add_tweets(self, user, *tweets):
-        accum = []
-        for tweet in tweets:
-            accum.append(Tweet.create(user=user, content=tweet))
-        return accum
+        return [Tweet.create(user=user, content=tweet) for tweet in tweets]
 
     @requires_models(Point)
     def test_no_primary_key(self):
@@ -157,7 +154,7 @@ class TestModelAPIs(ModelTestCase):
 
     @requires_models(User)
     def test_bulk_create(self):
-        users = [User(username='u%s' % i) for i in range(5)]
+        users = [User(username=f'u{i}') for i in range(5)]
         self.assertEqual(User.select().count(), 0)
 
         with self.assertQueryCount(1):
@@ -202,8 +199,7 @@ class TestModelAPIs(ModelTestCase):
 
     @requires_models(Person)
     def test_bulk_update(self):
-        data = [('f%s' % i, 'l%s' % i, datetime.date(1980, i, i))
-                for i in range(1, 5)]
+        data = [(f'f{i}', f'l{i}', datetime.date(1980, i, i)) for i in range(1, 5)]
         Person.insert_many(data).execute()
 
         p1, p2, p3, p4 = list(Person.select().order_by(Person.id))
@@ -244,7 +240,7 @@ class TestModelAPIs(ModelTestCase):
         for username in ('charlie', 'huey', 'zaizee'):
             user = User.create(username=username)
             for i in range(2):
-                Tweet.create(user=user, content='%s-%s' % (username, i))
+                Tweet.create(user=user, content=f'{username}-{i}')
 
         c, h, z = list(User.select().order_by(User.id))
         c0, c1, h0, h1, z0, z1 = list(Tweet.select().order_by(Tweet.id))
@@ -273,8 +269,10 @@ class TestModelAPIs(ModelTestCase):
 
     @requires_models(Person)
     def test_bulk_update_integrityerror(self):
-        people = [Person(first='f%s' % i, last='l%s' % i, dob='1980-01-01')
-                  for i in range(10)]
+        people = [
+            Person(first=f'f{i}', last=f'l{i}', dob='1980-01-01')
+            for i in range(10)
+        ]
         Person.bulk_create(people)
 
         # Get list of people w/the IDs populated. They will not be set if the
@@ -304,7 +302,7 @@ class TestModelAPIs(ModelTestCase):
 
         # Ensure no changes were made.
         vals = [(p.first, p.last) for p in Person.select().order_by(Person.id)]
-        self.assertEqual(vals, [('f%s' % i, 'l%s' % i) for i in range(10)])
+        self.assertEqual(vals, [(f'f{i}', f'l{i}') for i in range(10)])
 
     @requires_models(User, Tweet)
     def test_bulk_update_apply_dbvalue(self):
@@ -957,10 +955,10 @@ class TestModelAPIs(ModelTestCase):
     @skip_if(IS_SQLITE_OLD or IS_MYSQL)
     @requires_models(User)
     def test_multi_update(self):
-        data = [(i, 'u%s' % i) for i in range(1, 4)]
+        data = [(i, f'u{i}') for i in range(1, 4)]
         User.insert_many(data, fields=[User.id, User.username]).execute()
 
-        data = [(i, 'u%sx' % i) for i in range(1, 3)]
+        data = [(i, f'u{i}x') for i in range(1, 3)]
         vl = ValuesList(data)
         cte = vl.select().cte('uv', columns=('id', 'username'))
         subq = cte.select(cte.c.username).where(cte.c.id == User.id)
@@ -1073,9 +1071,9 @@ class TestModelAPIs(ModelTestCase):
     def test_compound_select_as_subquery(self):
         with self.database.atomic():
             for i in range(5):
-                user = User.create(username='u%s' % i)
+                user = User.create(username=f'u{i}')
                 for j in range(i * 2):
-                    Tweet.create(user=user, content='t%s-%s' % (i, j))
+                    Tweet.create(user=user, content=f't{i}-{j}')
 
         q1 = (Tweet
               .select(Tweet.id, Tweet.content, User.username)
@@ -1099,10 +1097,10 @@ class TestModelAPIs(ModelTestCase):
 
     @requires_models(User, Tweet)
     def test_union_with_join(self):
-        u1, u2 = [User.create(username='u%s' % i) for i in (1, 2)]
+        u1, u2 = [User.create(username=f'u{i}') for i in (1, 2)]
         for u, ts in ((u1, ('t1', 't2')), (u2, ('t1',))):
             for t in ts:
-                Tweet.create(user=u, content='%s-%s' % (u.username, t))
+                Tweet.create(user=u, content=f'{u.username}-{t}')
 
         q1 = (User
               .select(User, Tweet)
@@ -1331,7 +1329,7 @@ class TestModelAPIs(ModelTestCase):
 
         def assertBatch(n_rows, batch_size, n_commits):
             User.delete().execute()
-            user_data = [{'username': 'u%s' % i} for i in range(n_rows)]
+            user_data = [{'username': f'u{i}'} for i in range(n_rows)]
             with mock.patch.object(self.database, 'commit') as mock_commit:
                 mock_commit.side_effect = commit_method
                 for row in self.database.batch_commit(user_data, batch_size):
@@ -2470,7 +2468,7 @@ class TestCTEIntegration(ModelTestCase):
                 'ORDER BY "parents"."level"'), [cname, 1, '->'])
             return query
 
-        data = [row for row in get_parents('c31').tuples()]
+        data = list(get_parents('c31').tuples())
         self.assertEqual(data, [
             ('c31', 1, 'c31'),
             ('p3', 2, 'c31->p3'),
@@ -2790,14 +2788,15 @@ class TestFieldInheritance(BaseTestCase):
             'FOREIGN KEY ("account_id") REFERENCES "account" ("id"))'), [])
 
     def test_backref_inheritance(self):
+
         class Category(TestModel): pass
         def backref(fk_field):
-            return '%ss' % fk_field.model._meta.name
+            return f'{fk_field.model._meta.name}s'
+
         class BasePost(TestModel):
             category = ForeignKeyField(Category, backref=backref)
         class Note(BasePost): pass
         class Photo(BasePost): pass
-
         self.assertEqual(Category._meta.backrefs, {
             BasePost.category: BasePost,
             Note.category: Note,
@@ -2816,7 +2815,6 @@ class TestFieldInheritance(BaseTestCase):
             category = ForeignKeyField(Category, backref='items')
         class ItemA(BaseItem): pass
         class ItemB(BaseItem): pass
-
         self.assertEqual(BaseItem.category.backref, 'items')
         self.assertEqual(ItemA.category.backref, 'itema_set')
         self.assertEqual(ItemB.category.backref, 'itemb_set')
@@ -2896,20 +2894,35 @@ class TestMetaTableName(BaseTestCase):
 
 class TestMetaInheritance(BaseTestCase):
     def test_table_name(self):
+
+
+
         class Foo(Model):
+
+
+
             class Meta:
-                def table_function(klass):
-                    return 'xxx_%s' % klass.__name__.lower()
+                def table_function(self):
+                    return f'xxx_{self.__name__.lower()}'
+
+
 
         class Bar(Foo): pass
         class Baze(Foo):
             class Meta:
                 table_name = 'yyy_baze'
         class Biz(Baze): pass
+
+
         class Nug(Foo):
+
+
+
             class Meta:
-                def table_function(klass):
-                    return 'zzz_%s' % klass.__name__.lower()
+                def table_function(self):
+                    return f'zzz_{self.__name__.lower()}'
+
+
 
         self.assertEqual(Foo._meta.table_name, 'xxx_foo')
         self.assertEqual(Bar._meta.table_name, 'xxx_bar')
@@ -3312,11 +3325,7 @@ class PGOnConflictTests(OnConflictTests):
         # express this literally as ("extra" > 1) rather than using an
         # expression which will be parameterized. Hopefully SQLite's authors
         # decide this is a bug and fix it.
-        if IS_SQLITE:
-            conflict_where = UKVP.extra > SQL('1')
-        else:
-            conflict_where = UKVP.extra > 1
-
+        conflict_where = UKVP.extra > SQL('1') if IS_SQLITE else UKVP.extra > 1
         res = (UKVP.insert_many(data, fields)
                .on_conflict(conflict_target=(UKVP.key, UKVP.value),
                             conflict_where=conflict_where,
@@ -3601,7 +3610,7 @@ class TestUpsertPostgresql(PGOnConflictTests, ModelTestCase):
     def test_conflict_ambiguous_column(self):
         # k1/v1/e1, k2/v2/e0, k3/v3/e1
         for i in [1, 2, 3]:
-            UKV.create(key='k%s' % i, value='v%s' % i, extra='e%s' % (i % 2))
+            UKV.create(key=f'k{i}', value=f'v{i}', extra=f'e{i % 2}')
 
         UKVRel.create(key='k1', value='v1', extra='x1')
         UKVRel.create(key='k2', value='v2', extra='x2')
@@ -3681,7 +3690,7 @@ class TestJoinSubquery(ModelTestCase):
             'ON ("t1"."id" = "subq"."from_person_id") '
             'ORDER BY "t1"."first", "subq"."friend_name"'), [])
 
-        db_data = [row for row in query.tuples()]
+        db_data = list(query.tuples())
         self.assertEqual(db_data, list(data))
 
 
@@ -3908,9 +3917,9 @@ class TestLateralJoin(ModelTestCase):
     def test_lateral_join(self):
         with self.database.atomic():
             for i in range(3):
-                u = User.create(username='u%s' % i)
+                u = User.create(username=f'u{i}')
                 for j in range(4):
-                    Tweet.create(user=u, content='u%s-t%s' % (i, j))
+                    Tweet.create(user=u, content=f'u{i}-t{j}')
 
         # GOAL: query users and their 2 most-recent tweets (by ID).
         TA = Tweet.alias()
@@ -3937,13 +3946,17 @@ class TestLateralJoin(ModelTestCase):
                  .select(user_query.c.username, tweet_query.c.content)
                  .from_(join)
                  .dicts())
-        self.assertEqual([row for row in query], [
-            {'username': 'u0', 'content': 'u0-t3'},
-            {'username': 'u0', 'content': 'u0-t2'},
-            {'username': 'u1', 'content': 'u1-t3'},
-            {'username': 'u1', 'content': 'u1-t2'},
-            {'username': 'u2', 'content': 'u2-t3'},
-            {'username': 'u2', 'content': 'u2-t2'}])
+        self.assertEqual(
+            list(query),
+            [
+                {'username': 'u0', 'content': 'u0-t3'},
+                {'username': 'u0', 'content': 'u0-t2'},
+                {'username': 'u1', 'content': 'u1-t3'},
+                {'username': 'u1', 'content': 'u1-t2'},
+                {'username': 'u2', 'content': 'u2-t3'},
+                {'username': 'u2', 'content': 'u2-t2'},
+            ],
+        )
 
 
 class Task(TestModel):
@@ -3975,8 +3988,12 @@ class TestMultiSelfJoin(ModelTestCase):
             for title, proj, n_subtasks in heading_data:
                 t = Task.create(title=title, project=proj, type=Task.HEADING)
                 for i in range(n_subtasks):
-                    Task.create(title='%s-%s' % (title, i + 1), project=proj,
-                                heading=t, type=Task.HEADING)
+                    Task.create(
+                        title=f'{title}-{i + 1}',
+                        project=proj,
+                        heading=t,
+                        type=Task.HEADING,
+                    )
 
     def test_multi_self_join(self):
         Project = Task.alias()

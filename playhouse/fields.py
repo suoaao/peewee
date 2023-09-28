@@ -31,10 +31,10 @@ class CompressedField(BlobField):
                  **kwargs):
         self.compression_level = compression_level
         if algorithm not in self.algorithm_to_import:
-            raise ValueError('Unrecognized algorithm %s' % algorithm)
+            raise ValueError(f'Unrecognized algorithm {algorithm}')
         compress_module = self.algorithm_to_import[algorithm]
         if compress_module is None:
-            raise ValueError('Missing library required for %s.' % algorithm)
+            raise ValueError(f'Missing library required for {algorithm}.')
 
         self.algorithm = algorithm
         self.compress = compress_module.compress

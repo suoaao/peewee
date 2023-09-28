@@ -138,7 +138,7 @@ class TestModelSQL(ModelDatabaseTestCase):
         users = User.select().where(User.username.in_(('foo', 'bar')))
         self.assertSQL(users, *expected)
 
-        users = User.select().where(User.username.in_(set(['foo', 'bar'])))
+        users = User.select().where(User.username.in_({'foo', 'bar'}))
         # Sets are unordered so params may be in either order:
         sql, params = __sql__(users)
         self.assertEqual(sql, expected[0])
@@ -460,24 +460,37 @@ class TestModelSQL(ModelDatabaseTestCase):
                                'WHERE ("t1"."last" = ?)'), ['cat'])
 
     def test_insert_returning(self):
+
         class TestDB(Database):
             returning_clause = True
 
+
+
         class User(Model):
-            username = CharField()
+
+
             class Meta:
+                username = CharField()
                 database = TestDB(None)
+
+
 
         query = User.insert({User.username: 'zaizee'})
         self.assertSQL(query, (
             'INSERT INTO "user" ("username") '
             'VALUES (?) RETURNING "user"."id"'), ['zaizee'])
 
+
+
         class Person(Model):
-            name = CharField()
-            ssn = CharField(primary_key=True)
+
+
             class Meta:
+                name = CharField()
+                ssn = CharField(primary_key=True)
                 database = TestDB(None)
+
+
 
         query = Person.insert({Person.name: 'charlie', Person.ssn: '123'})
         self.assertSQL(query, (

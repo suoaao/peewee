@@ -10,10 +10,8 @@ from distutils.errors import DistutilsPlatformError
 from setuptools import setup
 from setuptools.extension import Extension
 
-f = open(os.path.join(os.path.dirname(__file__), 'README.rst'))
-readme = f.read()
-f.close()
-
+with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
+    readme = f.read()
 extension_support = True  # Assume we are building C extensions.
 
 # Check if Cython is available and use it to generate extension modules. If
@@ -45,12 +43,13 @@ else:
     cythonize = lambda obj: obj
 
 sqlite_udf_module = Extension(
-    'playhouse._sqlite_udf',
-    ['playhouse/_sqlite_udf' + src_ext])
+    'playhouse._sqlite_udf', [f'playhouse/_sqlite_udf{src_ext}']
+)
 sqlite_ext_module = Extension(
     'playhouse._sqlite_ext',
-    ['playhouse/_sqlite_ext' + src_ext],
-    libraries=['sqlite3'])
+    [f'playhouse/_sqlite_ext{src_ext}'],
+    libraries=['sqlite3'],
+)
 
 
 def _have_sqlite_extension_support():
@@ -64,7 +63,7 @@ def _have_sqlite_extension_support():
               'int main(int argc, char **argv) { return 0; }')
     tmp_dir = tempfile.mkdtemp(prefix='tmp_pw_sqlite3_')
     bin_file = os.path.join(tmp_dir, 'test_pw_sqlite3')
-    src_file = bin_file + '.c'
+    src_file = f'{bin_file}.c'
     with open(src_file, 'w') as fh:
         fh.write(c_code)
 

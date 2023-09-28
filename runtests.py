@@ -43,12 +43,16 @@ def get_option_parser():
             ('user', 'postgres', os.environ.get('PGUSER', '')),
             ('password', 'blank', os.environ.get('PGPASSWORD', '')))))
     for name, prefix, param_list in db_param_map:
-        group = optparse.OptionGroup(parser, '%s connection options' % name)
+        group = optparse.OptionGroup(parser, f'{name} connection options')
         for param, default_disp, default_val in param_list:
-            dest = '%s_%s' % (prefix.lower(), param)
-            opt = '--%s-%s' % (prefix.lower(), param)
-            group.add_option(opt, default=default_val, dest=dest, help=(
-                '%s database %s. Default %s.' % (name, param, default_disp)))
+            dest = f'{prefix.lower()}_{param}'
+            opt = f'--{prefix.lower()}-{param}'
+            group.add_option(
+                opt,
+                default=default_val,
+                dest=dest,
+                help=f'{name} database {param}. Default {default_disp}.',
+            )
 
         parser.add_option_group(group)
     return parser
@@ -61,8 +65,10 @@ def collect_tests(args):
         module_suite = unittest.TestLoader().loadTestsFromModule(tests)
         suite.addTest(module_suite)
     else:
-        cleaned = ['tests.%s' % arg if not arg.startswith('tests.') else arg
-                   for arg in args]
+        cleaned = [
+            f'tests.{arg}' if not arg.startswith('tests.') else arg
+            for arg in args
+        ]
         user_suite = unittest.TestLoader().loadTestsFromNames(cleaned)
         suite.addTest(user_suite)
 
@@ -78,9 +84,8 @@ if __name__ == '__main__':
     for db in ('mysql', 'psql'):
         for key in ('host', 'port', 'user', 'password'):
             att_name = '_'.join((db, key))
-            value = getattr(options, att_name, None)
-            if value:
-                os.environ['PEEWEE_%s' % att_name.upper()] = value
+            if value := getattr(options, att_name, None):
+                os.environ[f'PEEWEE_{att_name.upper()}'] = value
 
     os.environ['PEEWEE_TEST_VERBOSITY'] = str(options.verbosity)
 

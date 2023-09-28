@@ -99,7 +99,7 @@ class BaseTestQueueDatabase(object):
     def test_multiple_threads(self):
         def create_rows(idx, nrows):
             for i in range(idx, idx + nrows):
-                User.create(name='u-%s' % i)
+                User.create(name=f'u-{i}')
 
         total = self.n_threads * self.n_rows
         self.database.start()

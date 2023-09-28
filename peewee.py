@@ -193,7 +193,7 @@ else:
     __sqlite_version__ = (0, 0, 0)
 
 
-__date_parts__ = set(('year', 'month', 'day', 'hour', 'minute', 'second'))
+__date_parts__ = {'year', 'month', 'day', 'hour', 'minute', 'second'}
 
 # Sqlite does not support the `date_part` SQL function, so we will define an
 # implementation in python.
@@ -642,11 +642,7 @@ def query_to_string(query):
     # and this misuse could lead to sql injection vulnerabilities. This
     # function is intended for debugging or logging purposes ONLY.
     db = getattr(query, '_database', None)
-    if db is not None:
-        ctx = db.get_sql_context()
-    else:
-        ctx = Context()
-
+    ctx = db.get_sql_context() if db is not None else Context()
     sql, params = ctx.sql(query).query()
     if not params:
         return sql
@@ -661,15 +657,15 @@ def _query_val_transform(v):
     # Interpolate parameters.
     if isinstance(v, (text_type, datetime.datetime, datetime.date,
                       datetime.time)):
-        v = "'%s'" % v
+        v = f"'{v}'"
     elif isinstance(v, bytes_type):
         try:
             v = v.decode('utf8')
         except UnicodeDecodeError:
             v = v.decode('raw_unicode_escape')
-        v = "'%s'" % v
+        v = f"'{v}'"
     elif isinstance(v, int):
-        v = '%s' % int(v)  # Also handles booleans -> 1 or 0.
+        v = f'{int(v)}'
     elif v is None:
         v = 'NULL'
     else:
@@ -727,9 +723,7 @@ class _DynamicColumn(object):
     __slots__ = ()
 
     def __get__(self, instance, instance_type=None):
-        if instance is not None:
-            return ColumnFactory(instance)  # Implements __getattr__().
-        return self
+        return ColumnFactory(instance) if instance is not None else self
 
 
 class _ExplicitColumn(object):
@@ -769,9 +763,7 @@ class Source(Node):
         return CTE(name, self, recursive=recursive, columns=columns)
 
     def get_sort_key(self, ctx):
-        if self._alias:
-            return (self._alias,)
-        return (ctx.alias_manager[self],)
+        return (self._alias, ) if self._alias else (ctx.alias_manager[self], )
 
     def apply_alias(self, ctx):
         # If we are defining the source, include the "AS alias" declaration. An
@@ -818,9 +810,8 @@ def __bind_database__(meth):
     @wraps(meth)
     def inner(self, *args, **kwargs):
         result = meth(self, *args, **kwargs)
-        if self._database:
-            return result.bind(self._database)
-        return result
+        return result.bind(self._database) if self._database else result
+
     return inner
 
 
@@ -997,7 +988,7 @@ class ValuesList(_HashableSource, BaseTable):
         if self._alias:
             ctx.alias_manager[self] = self._alias
 
-        if ctx.scope == SCOPE_SOURCE or ctx.scope == SCOPE_NORMAL:
+        if ctx.scope in [SCOPE_SOURCE, SCOPE_NORMAL]:
             with ctx(parentheses=not ctx.parentheses):
                 ctx = (ctx
                        .literal('VALUES ')
@@ -1067,9 +1058,7 @@ class CTE(_HashableSource, Source):
 
 class ColumnBase(Node):
     def alias(self, alias):
-        if alias:
-            return Alias(self, alias)
-        return self
+        return Alias(self, alias) if alias else self
 
     def unalias(self):
         return self
@@ -1094,9 +1083,8 @@ class ColumnBase(Node):
         consisting of the left-hand and right-hand operands, using `op`.
         """
         def inner(self, rhs):
-            if inv:
-                return Expression(rhs, op, self)
-            return Expression(self, op, rhs)
+            return Expression(rhs, op, self) if inv else Expression(self, op, rhs)
+
         return inner
     __and__ = _e(OP.AND)
     __or__ = _e(OP.OR)
@@ -1166,7 +1154,7 @@ class ColumnBase(Node):
         return NodeList((SQL('DISTINCT'), self))
 
     def collate(self, collation):
-        return NodeList((self, SQL('COLLATE %s' % collation)))
+        return NodeList((self, SQL(f'COLLATE {collation}')))
 
     def get_sort_key(self, ctx):
         return ()
@@ -1189,9 +1177,8 @@ class Column(ColumnBase):
     def __sql__(self, ctx):
         if ctx.scope == SCOPE_VALUES:
             return ctx.sql(Entity(self.name))
-        else:
-            with ctx.scope_column():
-                return ctx.sql(self.source).literal('.').sql(Entity(self.name))
+        with ctx.scope_column():
+            return ctx.sql(self.source).literal('.').sql(Entity(self.name))
 
 
 class WrappedNode(ColumnBase):
@@ -1217,9 +1204,7 @@ class EntityFactory(object):
 class _DynamicEntity(object):
     __slots__ = ()
     def __get__(self, instance, instance_type=None):
-        if instance is not None:
-            return EntityFactory(instance._alias)  # Implements __getattr__().
-        return self
+        return EntityFactory(instance._alias) if instance is not None else self
 
 
 class Alias(WrappedNode):
@@ -1230,10 +1215,7 @@ class Alias(WrappedNode):
         self._alias = alias
 
     def alias(self, alias=None):
-        if alias is None:
-            return self.node
-        else:
-            return Alias(self.node, alias)
+        return self.node if alias is None else Alias(self.node, alias)
 
     def unalias(self):
         return self.node
@@ -1351,11 +1333,11 @@ class Ordering(WrappedNode):
         if self.nulls and not ctx.state.nulls_ordering:
             ctx.sql(self._null_ordering_case(self.nulls)).literal(', ')
 
-        ctx.sql(self.node).literal(' %s' % self.direction)
+        ctx.sql(self.node).literal(f' {self.direction}')
         if self.collation:
-            ctx.literal(' COLLATE %s' % self.collation)
+            ctx.literal(f' COLLATE {self.collation}')
         if self.nulls and ctx.state.nulls_ordering:
-            ctx.literal(' NULLS %s' % self.nulls)
+            ctx.literal(f' NULLS {self.nulls}')
         return ctx
 
 
@@ -1445,7 +1427,7 @@ class SQL(ColumnBase):
 
 
 def Check(constraint):
-    return SQL('CHECK (%s)' % constraint)
+    return SQL(f'CHECK ({constraint})')
 
 
 class Function(ColumnBase):
@@ -1599,15 +1581,11 @@ class Window(Node):
                     CommaNodeList(self.order_by)))
             if self.start is not None and self.end is not None:
                 frame = self.frame_type or 'ROWS'
-                parts.extend((
-                    SQL('%s BETWEEN' % frame),
-                    self.start,
-                    SQL('AND'),
-                    self.end))
+                parts.extend((SQL(f'{frame} BETWEEN'), self.start, SQL('AND'), self.end))
             elif self.start is not None:
                 parts.extend((SQL(self.frame_type or 'ROWS'), self.start))
             elif self.frame_type is not None:
-                parts.append(SQL('%s UNBOUNDED PRECEDING' % self.frame_type))
+                parts.append(SQL(f'{self.frame_type} UNBOUNDED PRECEDING'))
             if self._exclude is not None:
                 parts.extend((SQL('EXCLUDE'), self._exclude))
             ctx.sql(NodeList(parts))
@@ -1847,16 +1825,13 @@ class BaseQuery(Node):
         elif row_type == ROW.CONSTRUCTOR:
             return ObjectCursorWrapper(cursor, self._constructor)
         else:
-            raise ValueError('Unrecognized row type: "%s".' % row_type)
+            raise ValueError(f'Unrecognized row type: "{row_type}".')
 
     def __sql__(self, ctx):
         raise NotImplementedError
 
     def sql(self):
-        if self._database:
-            context = self._database.get_sql_context()
-        else:
-            context = Context()
+        context = self._database.get_sql_context() if self._database else Context()
         return context.parse(self)
 
     @database_required
@@ -1871,9 +1846,10 @@ class BaseQuery(Node):
 
     def _ensure_execution(self):
         if not self._cursor_wrapper:
-            if not self._database:
+            if self._database:
+                self.execute()
+            else:
                 raise ValueError('Query has not been executed.')
-            self.execute()
 
     def __iter__(self):
         self._ensure_execution()
@@ -1881,10 +1857,7 @@ class BaseQuery(Node):
 
     def __getitem__(self, value):
         self._ensure_execution()
-        if isinstance(value, slice):
-            index = value.stop
-        else:
-            index = value
+        index = value.stop if isinstance(value, slice) else value
         if index is not None:
             index = index + 1 if index >= 0 else 0
         self._cursor_wrapper.fill_cache(index)
@@ -2038,8 +2011,7 @@ class SelectBase(_HashableSource, Source, SelectQuery):
 
     @database_required
     def peek(self, database, n=1):
-        rows = self.execute(database)[:n]
-        if rows:
+        if rows := self.execute(database)[:n]:
             return rows[0] if n == 1 else rows
 
     @database_required
@@ -2126,7 +2098,7 @@ class CompoundSelectQuery(SelectBase):
             lhs_parens = self._wrap_parens(ctx, self.lhs)
             with ctx.scope_normal(parentheses=lhs_parens, subquery=False):
                 ctx.sql(self.lhs)
-            ctx.literal(' %s ' % self.op)
+            ctx.literal(f' {self.op} ')
             with ctx.push_alias():
                 # Should the right-hand query be wrapped in parentheses?
                 rhs_parens = self._wrap_parens(ctx, self.rhs)
@@ -2312,13 +2284,13 @@ class _WriteQuery(Query):
     def __init__(self, table, returning=None, **kwargs):
         self.table = table
         self._returning = returning
-        self._return_cursor = True if returning else False
+        self._return_cursor = bool(returning)
         super(_WriteQuery, self).__init__(**kwargs)
 
     @Node.copy
     def returning(self, *returning):
         self._returning = returning
-        self._return_cursor = True if returning else False
+        self._return_cursor = bool(returning)
 
     def apply_returning(self, ctx):
         if self._returning:
@@ -2340,9 +2312,7 @@ class _WriteQuery(Query):
         return self._cursor_wrapper
 
     def handle_result(self, database, cursor):
-        if self._return_cursor:
-            return cursor
-        return database.rows_affected(cursor)
+        return cursor if self._return_cursor else database.rows_affected(cursor)
 
     def _set_table_alias(self, ctx):
         ctx.alias_manager[self.table] = self.table.__name__
@@ -2509,18 +2479,14 @@ class Insert(_WriteQuery):
             is_dict = isinstance(row, Mapping)
             for i, (column, converter) in enumerate(columns_converters):
                 try:
-                    if is_dict:
-                        val = row[value_lookups[column]]
-                    else:
-                        val = row[i]
+                    val = row[value_lookups[column]] if is_dict else row[i]
                 except (KeyError, IndexError):
-                    if column in defaults:
-                        val = defaults[column]
-                        if callable_(val):
-                            val = val()
-                    else:
-                        raise ValueError('Missing value for %s.' % column.name)
+                    if column not in defaults:
+                        raise ValueError(f'Missing value for {column.name}.')
 
+                    val = defaults[column]
+                    if callable_(val):
+                        val = val()
                 if not isinstance(val, Node):
                     val = Value(val, converter=converter, unpack=False)
                 values.append(val)
@@ -2641,7 +2607,7 @@ class Index(Node):
             # Sqlite uses CREATE INDEX <schema>.<name> ON <table>, whereas most
             # others use: CREATE INDEX <name> ON <schema>.<table>.
             if ctx.state.index_schema_prefix and \
-               isinstance(self._table, Table) and self._table._schema:
+                   isinstance(self._table, Table) and self._table._schema:
                 index_name = Entity(self._table._schema, self._name)
                 table_name = Entity(self._table.__name__)
             else:
@@ -2654,7 +2620,7 @@ class Index(Node):
              .sql(table_name)
              .literal(' '))
             if self._using is not None:
-                ctx.literal('USING %s ' % self._using)
+                ctx.literal(f'USING {self._using} ')
 
             ctx.sql(EnclosedNodeList([
                 SQL(expr) if isinstance(expr, basestring) else expr
@@ -2708,7 +2674,7 @@ class ModelIndex(Index):
 def _truncate_constraint_name(constraint, maxlen=64):
     if len(constraint) > maxlen:
         name_hash = hashlib.md5(constraint.encode('utf-8')).hexdigest()
-        constraint = '%s_%s' % (constraint[:(maxlen - 8)], name_hash[:7])
+        constraint = f'{constraint[:maxlen - 8]}_{name_hash[:7]}'
     return constraint
 
 
@@ -3121,8 +3087,7 @@ class Database(_callable_context_manager):
     def batch_commit(self, it, n):
         for group in chunked(it, n):
             with self.atomic():
-                for obj in group:
-                    yield obj
+                yield from group
 
     def table_exists(self, table_name, schema=None):
         return table_name in self.get_tables(schema=schema)
@@ -3258,29 +3223,28 @@ class SqliteDatabase(Database):
     def _set_pragmas(self, conn):
         cursor = conn.cursor()
         for pragma, value in self._pragmas:
-            cursor.execute('PRAGMA %s = %s;' % (pragma, value))
+            cursor.execute(f'PRAGMA {pragma} = {value};')
         cursor.close()
 
     def _attach_databases(self, conn):
         cursor = conn.cursor()
         for name, db in self._attached.items():
-            cursor.execute('ATTACH DATABASE "%s" AS "%s"' % (db, name))
+            cursor.execute(f'ATTACH DATABASE "{db}" AS "{name}"')
         cursor.close()
 
     def pragma(self, key, value=SENTINEL, permanent=False, schema=None):
         if schema is not None:
-            key = '"%s".%s' % (schema, key)
-        sql = 'PRAGMA %s' % key
+            key = f'"{schema}".{key}'
+        sql = f'PRAGMA {key}'
         if value is not SENTINEL:
-            sql += ' = %s' % (value or 0)
+            sql += f' = {value or 0}'
             if permanent:
                 pragmas = dict(self._pragmas or ())
                 pragmas[key] = value
                 self._pragmas = list(pragmas.items())
         elif permanent:
             raise ValueError('Cannot specify a permanent pragma without value')
-        row = self.execute_sql(sql).fetchone()
-        if row:
+        if row := self.execute_sql(sql).fetchone():
             return row[0]
 
     cache_size = __pragma__('cache_size')
@@ -3338,8 +3302,9 @@ class SqliteDatabase(Database):
     def register_collation(self, fn, name=None):
         name = name or fn.__name__
         def _collation(*args):
-            expressions = args + (SQL('collate %s' % name),)
+            expressions = args + (SQL(f'collate {name}'), )
             return NodeList(expressions)
+
         fn.collation = _collation
         self._collations[name] = fn
         if not self.is_closed():
@@ -3427,11 +3392,11 @@ class SqliteDatabase(Database):
         if name in self._attached:
             if self._attached[name] == filename:
                 return False
-            raise OperationalError('schema "%s" already attached.' % name)
+            raise OperationalError(f'schema "{name}" already attached.')
 
         self._attached[name] = filename
         if not self.is_closed():
-            self.execute_sql('ATTACH DATABASE "%s" AS "%s"' % (filename, name))
+            self.execute_sql(f'ATTACH DATABASE "{filename}" AS "{name}"')
         return True
 
     def detach(self, name):
@@ -3440,7 +3405,7 @@ class SqliteDatabase(Database):
 
         del self._attached[name]
         if not self.is_closed():
-            self.execute_sql('DETACH DATABASE "%s"' % name)
+            self.execute_sql(f'DETACH DATABASE "{name}"')
         return True
 
     def atomic(self, lock_type=None):
@@ -3450,7 +3415,7 @@ class SqliteDatabase(Database):
         return _transaction(self, lock_type=lock_type)
 
     def begin(self, lock_type=None):
-        statement = 'BEGIN %s' % lock_type if lock_type else 'BEGIN'
+        statement = f'BEGIN {lock_type}' if lock_type else 'BEGIN'
         self.execute_sql(statement, commit=False)
 
     def get_tables(self, schema=None):
@@ -3466,15 +3431,12 @@ class SqliteDatabase(Database):
 
     def get_indexes(self, table, schema=None):
         schema = schema or 'main'
-        query = ('SELECT name, sql FROM "%s".sqlite_master '
-                 'WHERE tbl_name = ? AND type = ? ORDER BY name') % schema
+        query = f'SELECT name, sql FROM "{schema}".sqlite_master WHERE tbl_name = ? AND type = ? ORDER BY name'
         cursor = self.execute_sql(query, (table, 'index'))
         index_to_sql = dict(cursor.fetchall())
 
-        # Determine which indexes have a unique constraint.
+        cursor = self.execute_sql(f'PRAGMA "{schema}".index_list("{table}")')
         unique_indexes = set()
-        cursor = self.execute_sql('PRAGMA "%s".index_list("%s")' %
-                                  (schema, table))
         for row in cursor.fetchall():
             name = row[1]
             is_unique = int(row[2]) == 1
@@ -3484,8 +3446,7 @@ class SqliteDatabase(Database):
         # Retrieve the indexed columns.
         index_columns = {}
         for index_name in sorted(index_to_sql):
-            cursor = self.execute_sql('PRAGMA "%s".index_info("%s")' %
-                                      (schema, index_name))
+            cursor = self.execute_sql(f'PRAGMA "{schema}".index_info("{index_name}")')
             index_columns[index_name] = [row[2] for row in cursor.fetchall()]
 
         return [
@@ -3498,19 +3459,22 @@ class SqliteDatabase(Database):
             for name in sorted(index_to_sql)]
 
     def get_columns(self, table, schema=None):
-        cursor = self.execute_sql('PRAGMA "%s".table_info("%s")' %
-                                  (schema or 'main', table))
+        cursor = self.execute_sql(
+            f"""PRAGMA "{schema or 'main'}".table_info("{table}")"""
+        )
         return [ColumnMetadata(r[1], r[2], not r[3], bool(r[5]), table, r[4])
                 for r in cursor.fetchall()]
 
     def get_primary_keys(self, table, schema=None):
-        cursor = self.execute_sql('PRAGMA "%s".table_info("%s")' %
-                                  (schema or 'main', table))
+        cursor = self.execute_sql(
+            f"""PRAGMA "{schema or 'main'}".table_info("{table}")"""
+        )
         return [row[1] for row in filter(lambda r: r[-1], cursor.fetchall())]
 
     def get_foreign_keys(self, table, schema=None):
-        cursor = self.execute_sql('PRAGMA "%s".foreign_key_list("%s")' %
-                                  (schema or 'main', table))
+        cursor = self.execute_sql(
+            f"""PRAGMA "{schema or 'main'}".foreign_key_list("{table}")"""
+        )
         return [ForeignKeyMetadata(row[3], row[2], row[4], table)
                 for row in cursor.fetchall()]
 
@@ -3520,7 +3484,7 @@ class SqliteDatabase(Database):
     def conflict_statement(self, on_conflict, query):
         action = on_conflict._action.lower() if on_conflict._action else ''
         if action and action not in ('nothing', 'update'):
-            return SQL('INSERT OR %s' % on_conflict._action.upper())
+            return SQL(f'INSERT OR {on_conflict._action.upper()}')
 
     def conflict_update(self, oc, query):
         # Sqlite prior to 3.24.0 does not support Postgres-style upsert.
@@ -3740,7 +3704,7 @@ class PostgresqlDatabase(Database):
         return ctx.sql(Select().columns(SQL('0')).where(SQL('false')))
 
     def set_time_zone(self, timezone):
-        self.execute_sql('set time zone "%s";' % timezone)
+        self.execute_sql(f'set time zone "{timezone}";')
 
 
 class MySQLDatabase(Database):
@@ -3779,8 +3743,7 @@ class MySQLDatabase(Database):
     def _connect(self):
         if mysql is None:
             raise ImproperlyConfigured('MySQL driver not installed!')
-        conn = mysql.connect(db=self.database, **self.connect_params)
-        return conn
+        return mysql.connect(db=self.database, **self.connect_params)
 
     def _set_server_version(self, conn):
         try:
@@ -3798,7 +3761,7 @@ class MySQLDatabase(Database):
         if match_obj is not None:
             return tuple(int(num) for num in match_obj.groups()[0].split('.'))
 
-        warnings.warn('Unable to determine MySQL version: "%s"' % version)
+        warnings.warn(f'Unable to determine MySQL version: "{version}"')
         return (0, 0, 0)  # Unable to determine version!
 
     def default_values_insert(self, ctx):
@@ -3818,7 +3781,7 @@ class MySQLDatabase(Database):
         return [ViewMetadata(*row) for row in cursor.fetchall()]
 
     def get_indexes(self, table, schema=None):
-        cursor = self.execute_sql('SHOW INDEX FROM `%s`' % table)
+        cursor = self.execute_sql(f'SHOW INDEX FROM `{table}`')
         unique = set()
         indexes = {}
         for row in cursor.fetchall():
@@ -3840,7 +3803,7 @@ class MySQLDatabase(Database):
                 for name, null, dt, df in cursor.fetchall()]
 
     def get_primary_keys(self, table, schema=None):
-        cursor = self.execute_sql('SHOW INDEX FROM `%s`' % table)
+        cursor = self.execute_sql(f'SHOW INDEX FROM `{table}`')
         return [row[4] for row in
                 filter(lambda row: row[2] == 'PRIMARY', cursor.fetchall())]
 
@@ -4017,18 +3980,18 @@ class _transaction(_callable_context_manager):
 class _savepoint(_callable_context_manager):
     def __init__(self, db, sid=None):
         self.db = db
-        self.sid = sid or 's' + uuid.uuid4().hex
+        self.sid = sid or f's{uuid.uuid4().hex}'
         self.quoted_sid = self.sid.join(self.db.quote)
 
     def _begin(self):
-        self.db.execute_sql('SAVEPOINT %s;' % self.quoted_sid)
+        self.db.execute_sql(f'SAVEPOINT {self.quoted_sid};')
 
     def commit(self, begin=True):
-        self.db.execute_sql('RELEASE SAVEPOINT %s;' % self.quoted_sid)
+        self.db.execute_sql(f'RELEASE SAVEPOINT {self.quoted_sid};')
         if begin: self._begin()
 
     def rollback(self):
-        self.db.execute_sql('ROLLBACK TO SAVEPOINT %s;' % self.quoted_sid)
+        self.db.execute_sql(f'ROLLBACK TO SAVEPOINT {self.quoted_sid};')
 
     def __enter__(self):
         self._begin()
@@ -4058,9 +4021,7 @@ class CursorWrapper(object):
         self.row_cache = []
 
     def __iter__(self):
-        if self.populated:
-            return iter(self.row_cache)
-        return ResultIterator(self)
+        return iter(self.row_cache) if self.populated else ResultIterator(self)
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -4071,7 +4032,7 @@ class CursorWrapper(object):
                 self.fill_cache(stop)
             return self.row_cache[item]
         elif isinstance(item, int):
-            self.fill_cache(item if item > 0 else 0)
+            self.fill_cache(max(item, 0))
             return self.row_cache[item]
         else:
             raise ValueError('CursorWrapper only supports integer and slice '
@@ -4193,9 +4154,7 @@ class FieldAccessor(object):
         self.name = name
 
     def __get__(self, instance, instance_type=None):
-        if instance is not None:
-            return instance.__data__.get(self.name)
-        return self.field
+        return instance.__data__.get(self.name) if instance is not None else self.field
 
     def __set__(self, instance, value):
         instance.__data__[self.name] = value
@@ -4219,9 +4178,7 @@ class ForeignKeyAccessor(FieldAccessor):
         return value
 
     def __get__(self, instance, instance_type=None):
-        if instance is not None:
-            return self.get_rel_instance(instance)
-        return self.field
+        return self.get_rel_instance(instance) if instance is not None else self.field
 
     def __set__(self, instance, obj):
         if isinstance(obj, self.rel_model):
@@ -4314,14 +4271,12 @@ class Field(ColumnBase):
         self._sort_key = (self.primary_key and 1 or 2), self._order
 
     def __hash__(self):
-        return hash(self.name + '.' + self.model.__name__)
+        return hash(f'{self.name}.{self.model.__name__}')
 
     def __repr__(self):
         if hasattr(self, 'model') and getattr(self, 'name', None):
-            return '<%s: %s.%s>' % (type(self).__name__,
-                                    self.model.__name__,
-                                    self.name)
-        return '<%s: (unbound)>' % type(self).__name__
+            return f'<{type(self).__name__}: {self.model.__name__}.{self.name}>'
+        return f'<{type(self).__name__}: (unbound)>'
 
     def bind(self, model, name, set_attribute=True):
         self.model = model
@@ -4362,14 +4317,13 @@ class Field(ColumnBase):
         modifiers = self.get_modifiers()
         if column_type and modifiers:
             modifier_literal = ', '.join([str(m) for m in modifiers])
-            return SQL('%s(%s)' % (column_type, modifier_literal))
+            return SQL(f'{column_type}({modifier_literal})')
         else:
             return SQL(column_type)
 
     def ddl(self, ctx):
         accum = [Entity(self.column_name)]
-        data_type = self.ddl_datatype(ctx)
-        if data_type:
+        if data_type := self.ddl_datatype(ctx):
             accum.append(data_type)
         if self.unindexed:
             accum.append(SQL('UNINDEXED'))
@@ -4378,11 +4332,11 @@ class Field(ColumnBase):
         if self.primary_key:
             accum.append(SQL('PRIMARY KEY'))
         if self.sequence:
-            accum.append(SQL("DEFAULT NEXTVAL('%s')" % self.sequence))
+            accum.append(SQL(f"DEFAULT NEXTVAL('{self.sequence}')"))
         if self.constraints:
             accum.extend(self.constraints)
         if self.collation:
-            accum.append(SQL('COLLATE %s' % self.collation))
+            accum.append(SQL(f'COLLATE {self.collation}'))
         return NodeList(accum)
 
 
@@ -4405,7 +4359,7 @@ class AutoField(IntegerField):
 
     def __init__(self, *args, **kwargs):
         if kwargs.get('primary_key') is False:
-            raise ValueError('%s must always be a primary key.' % type(self))
+            raise ValueError(f'{type(self)} must always be a primary key.')
         kwargs['primary_key'] = True
         super(AutoField, self).__init__(*args, **kwargs)
 

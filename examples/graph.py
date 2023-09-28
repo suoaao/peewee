@@ -83,7 +83,7 @@ def print_path(s, e):
         route.append(pred[e])
         e = pred[e]
 
-    print(' -> '.join(v.name for v in route[::-1]) + ' (%s)' % distance)
+    print(' -> '.join(v.name for v in route[::-1]) + f' ({distance})')
 
 print_path(Node['a'], Node['c'])  # a -> b -> c
 print_path(Node['a'], Node['d'])  # a -> b -> e -> d

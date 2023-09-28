@@ -232,8 +232,8 @@ class TestSchemaMigration(ModelTestCase):
             Person.create(first_name=first, last_name=last, dob=dob)
 
     def get_column_names(self, tbl):
-        cursor = self.database.execute_sql('select * from %s limit 1' % tbl)
-        return set([col[0] for col in cursor.description])
+        cursor = self.database.execute_sql(f'select * from {tbl} limit 1')
+        return {col[0] for col in cursor.description}
 
     def test_drop_column(self):
         self._create_people()
@@ -242,15 +242,15 @@ class TestSchemaMigration(ModelTestCase):
             self.migrator.drop_column('person', 'dob'))
 
         column_names = self.get_column_names('person')
-        self.assertEqual(column_names, set(['id', 'first_name']))
+        self.assertEqual(column_names, {'id', 'first_name'})
 
         User.create(id='charlie', password='12345')
         User.create(id='huey', password='meow')
         migrate(self.migrator.drop_column('users', 'password'))
 
         column_names = self.get_column_names('users')
-        self.assertEqual(column_names, set(['id']))
-        data = [row for row in User.select(User.id).order_by(User.id).tuples()]
+        self.assertEqual(column_names, {'id'})
+        data = list(User.select(User.id).order_by(User.id).tuples())
         self.assertEqual(data, [
             ('charlie',),
             ('huey',),])
@@ -262,7 +262,7 @@ class TestSchemaMigration(ModelTestCase):
             self.migrator.rename_column('person', 'last_name', 'last'))
 
         column_names = self.get_column_names('person')
-        self.assertEqual(column_names, set(['id', 'first', 'last', 'dob']))
+        self.assertEqual(column_names, {'id', 'first', 'last', 'dob'})
 
         class NewPerson(Model):
             first = CharField()
@@ -291,7 +291,7 @@ class TestSchemaMigration(ModelTestCase):
         migrate(self.migrator.rename_column('page', 'name', 'title'))
 
         column_names = self.get_column_names('page')
-        self.assertEqual(column_names, set(['id', 'title', 'user_id']))
+        self.assertEqual(column_names, {'id', 'title', 'user_id'})
 
         class NewPage(Model):
             title = CharField(max_length=100, unique=True, null=True)
@@ -467,13 +467,16 @@ class TestSchemaMigration(ModelTestCase):
     def test_add_and_remove(self):
         operations = []
         field = CharField(default='foo')
-        for i in range(10):
-            operations.append(self.migrator.add_column('tag', 'foo', field))
-            operations.append(self.migrator.drop_column('tag', 'foo'))
-
+        for _ in range(10):
+            operations.extend(
+                (
+                    self.migrator.add_column('tag', 'foo', field),
+                    self.migrator.drop_column('tag', 'foo'),
+                )
+            )
         migrate(*operations)
         col_names = self.get_column_names('tag')
-        self.assertEqual(col_names, set(['id', 'tag']))
+        self.assertEqual(col_names, {'id', 'tag'})
 
     def test_multiple_operations(self):
         self.database.execute_sql('drop table if exists person_baze;')
@@ -493,15 +496,21 @@ class TestSchemaMigration(ModelTestCase):
         ]
         migrate(*operations)
 
+
+
         class PersonNugg(Model):
             field_null = field_n
             field_default = field_d
             last = CharField()
-            dob = DateField(null=True)
+
 
             class Meta:
+                dob = DateField(null=True)
+
                 database = self.database
                 table_name = 'person_nugg'
+
+
 
         people = (PersonNugg
                   .select(
@@ -627,12 +636,12 @@ class TestSchemaMigration(ModelTestCase):
     def test_table_case_insensitive(self):
         migrate(self.migrator.drop_column('PaGe', 'name'))
         column_names = self.get_column_names('page')
-        self.assertEqual(column_names, set(['id', 'user_id']))
+        self.assertEqual(column_names, {'id', 'user_id'})
 
         testing_field = CharField(default='xx')
         migrate(self.migrator.add_column('pAGE', 'testing', testing_field))
         column_names = self.get_column_names('page')
-        self.assertEqual(column_names, set(['id', 'user_id', 'testing']))
+        self.assertEqual(column_names, {'id', 'user_id', 'testing'})
 
         migrate(self.migrator.drop_column('indeX_mOdel', 'first_name'))
         indexes = self.migrator.database.get_indexes('index_model')
@@ -860,11 +869,17 @@ class TestSqliteColumnNameRegression(ModelTestCase):
 
         BNT = Table('bad_names', ('id', 'primary_data', 'foreign_data',
                                   'new_data')).bind(self.database)
-        self.assertEqual([row for row in BNT.select()], [{
-            'id': 1,
-            'primary_data': 'pd',
-            'foreign_data': 'fd',
-            'new_data': 'foo'}])
+        self.assertEqual(
+            list(BNT.select()),
+            [
+                {
+                    'id': 1,
+                    'primary_data': 'pd',
+                    'foreign_data': 'fd',
+                    'new_data': 'foo',
+                }
+            ],
+        )
 
         # Verify constraints were carried over.
         data = {'primary_data': 'pd', 'foreign_data': 'xx', 'new_data': 'd'}

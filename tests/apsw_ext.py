@@ -65,6 +65,7 @@ class TestAPSWExtension(ModelTestCase):
         self.assertEqual(curs.fetchone()[0], 'Hello')
 
     def test_db_register_aggregate(self):
+
         @database.aggregate()
         class First(object):
             def __init__(self):
@@ -79,7 +80,7 @@ class TestAPSWExtension(ModelTestCase):
 
         with database.atomic():
             for i in range(10):
-                User.create(username='u%s' % i)
+                User.create(username=f'u{i}')
 
         query = User.select(fn.First(User.username)).order_by(User.username)
         self.assertEqual(query.scalar(), 'u0')
@@ -94,7 +95,7 @@ class TestAPSWExtension(ModelTestCase):
 
         with database.atomic():
             for i in range(3):
-                User.create(username='u%s' % i)
+                User.create(username=f'u{i}')
 
         query = (User
                  .select(User.username)

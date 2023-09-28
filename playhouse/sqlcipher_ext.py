@@ -71,7 +71,7 @@ class _SqlCipherDatabase(object):
         conn = sqlcipher.connect(self.database, isolation_level=None, **params)
         try:
             if passphrase:
-                conn.execute("PRAGMA key='%s'" % passphrase)
+                conn.execute(f"PRAGMA key='{passphrase}'")
             self._add_conn_hooks(conn)
         except:
             conn.close()
@@ -90,7 +90,7 @@ class _SqlCipherDatabase(object):
         if self.is_closed():
             self.connect()
 
-        self.execute_sql("PRAGMA rekey='%s'" % passphrase.replace("'", "''"))
+        self.execute_sql(f"""PRAGMA rekey='{passphrase.replace("'", "''")}'""")
         self.connect_params['passphrase'] = passphrase
         return True
 

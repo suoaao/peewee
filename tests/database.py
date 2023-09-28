@@ -460,7 +460,7 @@ class TestIntrospection(ModelTestCase):
 
     def test_get_tables(self):
         tables = self.database.get_tables()
-        required = set(m._meta.table_name for m in self.requires)
+        required = {m._meta.table_name for m in self.requires}
         self.assertTrue(required.issubset(set(tables)))
 
         UniqueModel._schema.drop_all()
@@ -690,7 +690,6 @@ class TestAttachDatabase(ModelTestCase):
         # Attach an in-memory cache database.
         database.attach(':memory:', 'cache')
 
-        # Clone data into the in-memory cache.
         class CacheData(Data):
             class Meta:
                 schema = 'cache'
@@ -704,7 +703,7 @@ class TestAttachDatabase(ModelTestCase):
          .execute())
 
         # Update the source data.
-        query = Data.update({Data.value: Data.value + '-x'})
+        query = Data.update({Data.value: f'{Data.value}-x'})
         self.assertEqual(query.execute(), 2)
 
         # Verify the source data was updated.

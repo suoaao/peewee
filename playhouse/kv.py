@@ -83,7 +83,7 @@ class KeyValue(object):
         query = self.query(self.value).where(converted)
         item_getter = operator.itemgetter(0)
         result = [item_getter(row) for row in query]
-        if len(result) == 0 and is_single:
+        if not result and is_single:
             raise KeyError(expr)
         elif is_single:
             return result[0]

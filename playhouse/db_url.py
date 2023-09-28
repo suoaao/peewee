@@ -93,8 +93,7 @@ def connect(url, unquote_password=False, **connect_params):
             raise RuntimeError('Attempted to use "%s" but a required library '
                                'could not be imported.' % parsed.scheme)
         else:
-            raise RuntimeError('Unrecognized or unsupported scheme: "%s".' %
-                               parsed.scheme)
+            raise RuntimeError(f'Unrecognized or unsupported scheme: "{parsed.scheme}".')
 
     return database_class(**connect_kwargs)
 

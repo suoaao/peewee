@@ -147,9 +147,7 @@ def register_all(db):
 # Scalar functions.
 @udf(CONTROL_FLOW)
 def if_then_else(cond, truthy, falsey=None):
-    if cond:
-        return truthy
-    return falsey
+    return truthy if cond else falsey
 
 @udf(DATE)
 def strip_tz(date_str):
@@ -158,9 +156,7 @@ def strip_tz(date_str):
     if tz_idx1 != -1:
         return date_str[:tz_idx1]
     tz_idx2 = date_str.find('-')
-    if tz_idx2 > 13:
-        return date_str[:tz_idx2]
-    return date_str
+    return date_str[:tz_idx2] if tz_idx2 > 13 else date_str
 
 @udf(DATE)
 def human_delta(nseconds, glue=', '):
@@ -177,11 +173,9 @@ def human_delta(nseconds, glue=', '):
     for offset, name in parts:
         val, nseconds = divmod(nseconds, offset)
         if val:
-            suffix = val != 1 and 's' or ''
-            accum.append('%s %s%s' % (val, name, suffix))
-    if not accum:
-        return '0 seconds'
-    return glue.join(accum)
+            suffix = 's' if val != 1 else ''
+            accum.append(f'{val} {name}{suffix}')
+    return '0 seconds' if not accum else glue.join(accum)
 
 @udf(FILE)
 def file_ext(filename):
@@ -220,8 +214,7 @@ else:
 
 @udf(HELPER)
 def hostname(url):
-    parse_result = urlparse(url)
-    if parse_result:
+    if parse_result := urlparse(url):
         return parse_result.netloc
 
 @udf(HELPER)
@@ -234,9 +227,8 @@ def toggle(key):
 def setting(key, value=None):
     if value is None:
         return SETTINGS.get(key)
-    else:
-        SETTINGS[key] = value
-        return value
+    SETTINGS[key] = value
+    return value
 
 @udf(HELPER)
 def clear_settings():
@@ -280,9 +272,7 @@ def tonumber(s):
 
 @udf(STRING)
 def substr_count(haystack, needle):
-    if not haystack or not needle:
-        return 0
-    return haystack.count(needle)
+    return 0 if not haystack or not needle else haystack.count(needle)
 
 @udf(STRING)
 def strip_chars(haystack, chars):
